@@ -54,6 +54,9 @@ interface WindowAPI {
   shell: {
     openExternal: (url: string) => Promise<void>
   }
+  app: {
+    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string }) => void) => void
+  }
 }
 
 declare global {

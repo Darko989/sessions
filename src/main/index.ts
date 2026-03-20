@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, dialog } from 'electron'
+import { app, BrowserWindow, nativeTheme, dialog, ipcMain, net } from 'electron'
 
 // Required on Linux when running without a properly configured SUID sandbox
 if (process.platform === 'linux') {
@@ -75,22 +75,60 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// ── Auto-update (production only) ────────────────────────────────────────────
-if (!is.dev) {
-  autoUpdater.checkForUpdatesAndNotify()
+// ── Update check via GitHub releases API (works on all platforms) ─────────────
+function checkForUpdate(mainWindow: BrowserWindow): void {
+  const currentVersion = app.getVersion()
+  const req = net.request({
+    method: 'GET',
+    url: 'https://api.github.com/repos/Darko989/sessions/releases/latest',
+    headers: { 'User-Agent': 'Branchless' }
+  })
+  req.on('response', (res) => {
+    let body = ''
+    res.on('data', (chunk) => { body += chunk })
+    res.on('end', () => {
+      try {
+        const data = JSON.parse(body)
+        const latestVersion: string = (data.tag_name ?? '').replace(/^v/, '')
+        const releaseUrl: string = data.html_url ?? 'https://github.com/Darko989/sessions/releases/latest'
+        if (latestVersion && latestVersion !== currentVersion) {
+          mainWindow.webContents.send('app:updateAvailable', { latestVersion, releaseUrl })
+        }
+      } catch { /* ignore parse errors */ }
+    })
+  })
+  req.on('error', () => { /* ignore network errors */ })
+  req.end()
+}
 
-  autoUpdater.on('update-downloaded', () => {
-    dialog
-      .showMessageBox({
-        type: 'info',
-        title: 'Update ready',
-        message: 'A new version of Branchless has been downloaded.',
-        detail: 'Restart now to apply the update.',
-        buttons: ['Restart', 'Later'],
-        defaultId: 0
-      })
-      .then(({ response }) => {
-        if (response === 0) autoUpdater.quitAndInstall()
-      })
+ipcMain.handle('app:dismissUpdate', () => { /* no-op, state handled in renderer */ })
+
+// ── Auto-update (production only, Windows + Linux) ───────────────────────────
+if (!is.dev) {
+  if (process.platform !== 'darwin') {
+    autoUpdater.checkForUpdatesAndNotify()
+    autoUpdater.on('update-downloaded', () => {
+      dialog
+        .showMessageBox({
+          type: 'info',
+          title: 'Update ready',
+          message: 'A new version of Branchless has been downloaded.',
+          detail: 'Restart now to apply the update.',
+          buttons: ['Restart', 'Later'],
+          defaultId: 0
+        })
+        .then(({ response }) => {
+          if (response === 0) autoUpdater.quitAndInstall()
+        })
+    })
+  }
+
+  app.whenReady().then(() => {
+    const [mainWindow] = BrowserWindow.getAllWindows()
+    if (mainWindow) {
+      // Check immediately and then every 4 hours
+      setTimeout(() => checkForUpdate(mainWindow), 5000)
+      setInterval(() => checkForUpdate(mainWindow), 4 * 60 * 60 * 1000)
+    }
   })
 }

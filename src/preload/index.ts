@@ -57,6 +57,11 @@ const api = {
   activity: {
     getAll: invoke('activity:getAll'),
     getForSession: invoke('activity:getForSession')
+  },
+  app: {
+    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string }) => void) => {
+      ipcRenderer.on('app:updateAvailable', (_e, info) => cb(info))
+    }
   }
 }
 
