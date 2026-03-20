@@ -55,7 +55,6 @@ export class TicketService {
         request.setHeader(key, val)
       }
       request.setHeader('Content-Type', 'application/json')
-      request.setHeader('Content-Length', Buffer.byteLength(payload).toString())
       let data = ''
       request.on('response', (response) => {
         response.on('data', (chunk) => { data += chunk.toString() })
@@ -72,8 +71,7 @@ export class TicketService {
         response.on('error', reject)
       })
       request.on('error', reject)
-      request.write(payload)
-      request.end()
+      request.end(Buffer.from(payload, 'utf-8'))
     })
   }
 
