@@ -194,4 +194,22 @@ export function registerSessionIpc(
     if (!session) throw new Error('Session not found')
     openFileManager(session.worktreePath)
   })
+
+  ipcMain.handle('sessions:getLog', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getCommitLog(session.worktreePath)
+  })
+
+  ipcMain.handle('sessions:getChangedFiles', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getChangedFiles(session.worktreePath)
+  })
+
+  ipcMain.handle('sessions:getFileDiff', async (_e, sessionId: string, file: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getFileDiff(session.worktreePath, file)
+  })
 }

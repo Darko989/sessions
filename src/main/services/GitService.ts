@@ -304,6 +304,58 @@ export class GitService {
     }
   }
 
+  async getCommitLog(worktreePath: string, limit = 30): Promise<Array<{
+    hash: string
+    shortHash: string
+    subject: string
+    author: string
+    date: string
+  }>> {
+    try {
+      const out = await this.git(worktreePath, [
+        'log', `--max-count=${limit}`,
+        '--pretty=format:%H|%h|%s|%an|%ar'
+      ])
+      if (!out) return []
+      return out.split('\n').filter(Boolean).map((line) => {
+        const [hash, shortHash, subject, author, date] = line.split('|')
+        return { hash, shortHash, subject, author, date }
+      })
+    } catch {
+      return []
+    }
+  }
+
+  async getChangedFiles(worktreePath: string): Promise<Array<{
+    status: string
+    file: string
+  }>> {
+    try {
+      const out = await this.git(worktreePath, ['status', '--porcelain'])
+      if (!out) return []
+      return out.split('\n').filter(Boolean).map((line) => {
+        const xy = line.slice(0, 2).trim() || '?'
+        const file = line.slice(3)
+        return { status: xy, file }
+      })
+    } catch {
+      return []
+    }
+  }
+
+  async getFileDiff(worktreePath: string, file: string): Promise<string> {
+    try {
+      // Try staged+unstaged diff vs HEAD
+      const out = await this.git(worktreePath, ['diff', 'HEAD', '--', file])
+      if (out) return out
+      // Fallback: untracked file — show full content
+      const content = await this.git(worktreePath, ['show', `:${file}`]).catch(() => '')
+      return content
+    } catch {
+      return ''
+    }
+  }
+
   /**
    * Returns a PR creation URL for the given branch based on the repo's remote URL.
    * Supports GitHub, GitLab, and Bitbucket (HTTPS and SSH remotes).

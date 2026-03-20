@@ -140,17 +140,36 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
   const [pushMsg, setPushMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [prUrl, setPrUrl] = useState<string | null>(null)
 
+  // Changes & history
+  const [changedFiles, setChangedFiles] = useState<Array<{ status: string; file: string }>>([])
+  const [expandedDiff, setExpandedDiff] = useState<string | null>(null)
+  const [diffContent, setDiffContent] = useState<Record<string, string>>({})
+  const [commitLog, setCommitLog] = useState<Array<{ hash: string; shortHash: string; subject: string; author: string; date: string }>>([])
+  const [showHistory, setShowHistory] = useState(false)
+
   const loadStatus = useCallback(async () => {
     try {
       setStatus(await window.api.sessions.getStatus(session.id) as GitStatus)
     } catch { setStatus(null) }
   }, [session.id])
 
+  const loadChanges = useCallback(async () => {
+    try {
+      const [files, log] = await Promise.all([
+        window.api.sessions.getChangedFiles(session.id),
+        window.api.sessions.getLog(session.id)
+      ])
+      setChangedFiles(files as Array<{ status: string; file: string }>)
+      setCommitLog(log as Array<{ hash: string; shortHash: string; subject: string; author: string; date: string }>)
+    } catch { /* ignore */ }
+  }, [session.id])
+
   useEffect(() => {
     loadStatus()
-    const t = setInterval(loadStatus, 30_000)
+    loadChanges()
+    const t = setInterval(() => { loadStatus(); loadChanges() }, 30_000)
     return () => clearInterval(t)
-  }, [loadStatus])
+  }, [loadStatus, loadChanges])
 
   // Load PR URL on mount (it persists if they've already pushed)
   useEffect(() => {
@@ -224,6 +243,20 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
 
   const handleOpenPr = () => {
     if (prUrl) window.api.shell.openExternal(prUrl)
+  }
+
+  const toggleDiff = async (file: string) => {
+    if (expandedDiff === file) {
+      setExpandedDiff(null)
+      return
+    }
+    setExpandedDiff(file)
+    if (!diffContent[file]) {
+      try {
+        const diff = await window.api.sessions.getFileDiff(session.id, file) as string
+        setDiffContent((prev) => ({ ...prev, [file]: diff }))
+      } catch { /* ignore */ }
+    }
   }
 
   const open = async (method: string) => {
@@ -388,6 +421,93 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
 
         {/* COPY MANUALLY */}
         <CopyManually path={session.worktreePath} />
+
+        {/* CHANGED FILES */}
+        {changedFiles.length > 0 && (
+          <div className="rounded-xl border border-panel-border bg-white overflow-hidden">
+            <div className="px-4 py-3 border-b border-panel-border">
+              <span className="text-xs font-semibold tracking-widest text-ink-3 uppercase">
+                Changes ({changedFiles.length})
+              </span>
+            </div>
+            <div className="divide-y divide-panel-border">
+              {changedFiles.map(({ status, file }) => (
+                <div key={file}>
+                  <button
+                    onClick={() => toggleDiff(file)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-panel-hover text-left transition-colors"
+                  >
+                    <span className={`text-xs font-mono font-bold w-5 flex-shrink-0 ${
+                      status === 'A' || status === '??' ? 'text-green-600' :
+                      status === 'D' ? 'text-red-500' :
+                      'text-amber-600'
+                    }`}>
+                      {status === '??' ? 'U' : status.charAt(0)}
+                    </span>
+                    <span className="text-xs font-mono text-ink flex-1 truncate">{file}</span>
+                    <svg
+                      className={`w-3.5 h-3.5 text-ink-3 flex-shrink-0 transition-transform ${expandedDiff === file ? 'rotate-180' : ''}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {expandedDiff === file && (
+                    <div className="border-t border-panel-border bg-gray-950 overflow-x-auto">
+                      {diffContent[file] ? (
+                        <pre className="text-xs font-mono p-4 leading-relaxed whitespace-pre">
+                          {diffContent[file].split('\n').map((line, i) => (
+                            <div key={i} className={
+                              line.startsWith('+') && !line.startsWith('+++') ? 'text-green-400' :
+                              line.startsWith('-') && !line.startsWith('---') ? 'text-red-400' :
+                              line.startsWith('@@') ? 'text-blue-400' :
+                              'text-gray-400'
+                            }>{line || ' '}</div>
+                          ))}
+                        </pre>
+                      ) : (
+                        <div className="text-xs text-gray-500 p-4">No diff available</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* COMMIT HISTORY */}
+        {commitLog.length > 0 && (
+          <div className="rounded-xl border border-panel-border bg-white overflow-hidden">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-panel-hover transition-colors"
+            >
+              <span className="text-xs font-semibold tracking-widest text-ink-3 uppercase">
+                History ({commitLog.length})
+              </span>
+              <svg
+                className={`w-3.5 h-3.5 text-ink-3 transition-transform ${showHistory ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showHistory && (
+              <div className="divide-y divide-panel-border border-t border-panel-border">
+                {commitLog.map((commit) => (
+                  <div key={commit.hash} className="flex items-start gap-3 px-4 py-2.5">
+                    <span className="text-xs font-mono text-accent flex-shrink-0 mt-0.5">{commit.shortHash}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-ink truncate">{commit.subject}</div>
+                      <div className="text-xs text-ink-3 mt-0.5">{commit.author} · {commit.date}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ACTIVITY */}
         <ActivitySection sessionId={session.id} />

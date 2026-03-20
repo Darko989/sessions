@@ -12,6 +12,9 @@ interface WindowAPI {
     getStatus: IpcFn
     refresh: IpcFn
     push: IpcFn
+    getLog: IpcFn
+    getChangedFiles: IpcFn
+    getFileDiff: IpcFn
     getPrUrl: IpcFn
     openInVSCode: IpcFn
     openInClaude: IpcFn
