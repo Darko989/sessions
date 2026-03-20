@@ -178,7 +178,7 @@ export class TicketService {
 
     const result = await this.httpPost(
       `${base}/rest/api/3/issue`,
-      { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+      { Authorization: `Basic ${auth}`, Accept: 'application/json', 'X-Atlassian-Token': 'no-check' },
       { fields }
     ) as { id: string; key: string }
 
