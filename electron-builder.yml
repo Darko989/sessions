@@ -40,17 +40,6 @@ mac:
 dmg:
   title: Branchless
   icon: build/icon.icns
-  window:
-    width: 540
-    height: 380
-  contents:
-    - x: 150
-      y: 185
-      type: file
-    - x: 390
-      y: 185
-      type: link
-      path: /Applications
 
 # ── Windows ───────────────────────────────────────────────────────────────────
 win:
