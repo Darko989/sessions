@@ -46,6 +46,8 @@ interface WindowAPI {
     fetchShortcut: IpcFn
     searchJira: IpcFn
     getJiraBaseUrl: IpcFn
+    isJiraConfigured: IpcFn
+    fetchJiraProjects: IpcFn
     createJira: IpcFn
   }
   activity: {

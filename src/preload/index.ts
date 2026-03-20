@@ -53,6 +53,8 @@ const api = {
     fetchShortcut: invoke('tickets:fetchShortcut'),
     searchJira: invoke('tickets:searchJira'),
     getJiraBaseUrl: invoke('tickets:getJiraBaseUrl'),
+    isJiraConfigured: invoke('tickets:isJiraConfigured'),
+    fetchJiraProjects: invoke('tickets:fetchJiraProjects'),
     createJira: invoke('tickets:createJira')
   },
   activity: {

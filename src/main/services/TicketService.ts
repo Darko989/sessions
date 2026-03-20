@@ -194,6 +194,25 @@ export class TicketService {
     }
   }
 
+  async fetchJiraProjects(): Promise<Array<{ key: string; name: string }>> {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    const base = this.baseUrl()
+    if (!base || !jiraEmail || !jiraApiToken) return []
+
+    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
+    const data = await this.httpGet(
+      `${base}/rest/api/3/project/search?maxResults=100&orderBy=name`,
+      { Authorization: `Basic ${auth}`, Accept: 'application/json' }
+    ) as { values?: Array<{ key: string; name: string }> }
+
+    return (data.values ?? []).map((p) => ({ key: p.key, name: p.name }))
+  }
+
+  isJiraConfigured(): boolean {
+    const { jiraBaseUrl, jiraEmail, jiraApiToken } = this.settings.get()
+    return !!(jiraBaseUrl && jiraEmail && jiraApiToken)
+  }
+
   getJiraBaseUrl(): string {
     return this.baseUrl()
   }

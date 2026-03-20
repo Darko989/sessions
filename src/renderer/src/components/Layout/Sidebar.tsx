@@ -179,12 +179,22 @@ function groupByStatus(tickets: Ticket[]): { status: string; tickets: Ticket[] }
 
 const ISSUE_TYPES = ['Story', 'Bug', 'Task', 'Epic', 'Subtask']
 const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
+const PRIORITY_COLORS: Record<string, string> = {
+  Highest: 'text-red-600 border-red-200 bg-red-50',
+  High: 'text-orange-600 border-orange-200 bg-orange-50',
+  Medium: 'text-yellow-600 border-yellow-200 bg-yellow-50',
+  Low: 'text-blue-600 border-blue-200 bg-blue-50',
+  Lowest: 'text-slate-500 border-slate-200 bg-slate-50',
+}
 
 const CreateTicketForm: React.FC<{
-  projectKey: string
+  defaultProjectKey?: string
   onCreated: (t: Ticket) => void
   onBack: () => void
-}> = ({ projectKey, onCreated, onBack }) => {
+}> = ({ defaultProjectKey, onCreated, onBack }) => {
+  const [projects, setProjects] = useState<Array<{ key: string; name: string }>>([])
+  const [projectKey, setProjectKey] = useState(defaultProjectKey ?? '')
+  const [loadingProjects, setLoadingProjects] = useState(true)
   const [summary, setSummary] = useState('')
   const [issueType, setIssueType] = useState('Story')
   const [priority, setPriority] = useState('Medium')
@@ -192,8 +202,20 @@ const CreateTicketForm: React.FC<{
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    window.api.tickets.fetchJiraProjects()
+      .then((p) => {
+        const list = p as Array<{ key: string; name: string }>
+        setProjects(list)
+        // Pre-select defaultProjectKey or first project
+        if (!projectKey && list.length > 0) setProjectKey(list[0].key)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProjects(false))
+  }, [])
+
   const handleCreate = async () => {
-    if (!summary.trim()) return
+    if (!summary.trim() || !projectKey) return
     setCreating(true)
     setError('')
     try {
@@ -217,34 +239,63 @@ const CreateTicketForm: React.FC<{
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
           </svg>
         </button>
-        <div className="flex items-center gap-2">
-          <JiraLogo size={16}/>
-          <span className="text-sm font-semibold text-ink">Create ticket</span>
-          <span className="text-xs font-mono font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded">{projectKey}</span>
-        </div>
+        <JiraLogo size={16}/>
+        <span className="text-sm font-semibold text-ink">Create ticket</span>
       </div>
 
       {/* Form */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {/* Issue type + priority row */}
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Issue Type</label>
-            <div className="flex flex-wrap gap-1.5">
-              {ISSUE_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setIssueType(type)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                    issueType === type
-                      ? 'bg-accent text-white border-accent'
-                      : 'bg-panel-hover text-ink-2 border-panel-border hover:border-ink-3'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
+
+        {/* Project picker */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Project</label>
+          {loadingProjects ? (
+            <div className="flex items-center gap-2 text-xs text-ink-3">
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              Loading projects…
             </div>
+          ) : projects.length > 0 ? (
+            <select
+              value={projectKey}
+              onChange={(e) => setProjectKey(e.target.value)}
+              className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+            >
+              {projects.map((p) => (
+                <option key={p.key} value={p.key}>{p.key} — {p.name}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              autoFocus
+              type="text"
+              value={projectKey}
+              onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
+              placeholder="e.g. PROJ"
+              className="w-full text-sm font-mono bg-white border border-panel-border rounded-xl px-3 py-2 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          )}
+        </div>
+
+        {/* Issue type */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Issue Type</label>
+          <div className="flex flex-wrap gap-1.5">
+            {ISSUE_TYPES.map((type) => (
+              <button
+                key={type}
+                onClick={() => setIssueType(type)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                  issueType === type
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-panel-hover text-ink-2 border-panel-border hover:border-ink-3'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -252,28 +303,19 @@ const CreateTicketForm: React.FC<{
         <div>
           <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Priority</label>
           <div className="flex gap-1.5">
-            {PRIORITIES.map((p) => {
-              const colors: Record<string, string> = {
-                Highest: 'text-red-600 border-red-200 bg-red-50',
-                High: 'text-orange-600 border-orange-200 bg-orange-50',
-                Medium: 'text-yellow-600 border-yellow-200 bg-yellow-50',
-                Low: 'text-blue-600 border-blue-200 bg-blue-50',
-                Lowest: 'text-slate-500 border-slate-200 bg-slate-50',
-              }
-              return (
-                <button
-                  key={p}
-                  onClick={() => setPriority(p)}
-                  className={`flex-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                    priority === p
-                      ? colors[p] + ' ring-1 ring-offset-1 ring-current'
-                      : 'bg-panel-hover text-ink-3 border-panel-border hover:border-ink-3'
-                  }`}
-                >
-                  {p}
-                </button>
-              )
-            })}
+            {PRIORITIES.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPriority(p)}
+                className={`flex-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                  priority === p
+                    ? PRIORITY_COLORS[p] + ' ring-1 ring-offset-1 ring-current'
+                    : 'bg-panel-hover text-ink-3 border-panel-border hover:border-ink-3'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -283,11 +325,11 @@ const CreateTicketForm: React.FC<{
             Summary <span className="text-red-400">*</span>
           </label>
           <input
-            autoFocus
+            autoFocus={!loadingProjects && projects.length === 0}
             type="text"
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && summary.trim()) handleCreate() }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && summary.trim() && projectKey) handleCreate() }}
             placeholder="What needs to be done?"
             className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
@@ -320,7 +362,7 @@ const CreateTicketForm: React.FC<{
         </button>
         <button
           onClick={handleCreate}
-          disabled={creating || !summary.trim()}
+          disabled={creating || !summary.trim() || !projectKey}
           className="px-5 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
         >
           {creating ? (
@@ -396,7 +438,7 @@ const TicketModal: React.FC<{
 
         {view === 'create' ? (
           <CreateTicketForm
-            projectKey={projectKey ?? ''}
+            defaultProjectKey={projectKey}
             onCreated={handleCreated}
             onBack={() => setView('list')}
           />
@@ -408,17 +450,15 @@ const TicketModal: React.FC<{
                 <span className="text-sm font-semibold text-ink">Select ticket</span>
               </div>
               <div className="flex items-center gap-2">
-                {projectKey && (
-                  <button
-                    onClick={() => setView('create')}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
-                    </svg>
-                    New Ticket
-                  </button>
-                )}
+                <button
+                  onClick={() => setView('create')}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+                  </svg>
+                  New Ticket
+                </button>
                 <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
