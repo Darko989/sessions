@@ -47,6 +47,36 @@ export class TicketService {
     })
   }
 
+  private async httpPost(url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const request = net.request({ url, method: 'POST' })
+      const payload = JSON.stringify(body)
+      for (const [key, val] of Object.entries(headers)) {
+        request.setHeader(key, val)
+      }
+      request.setHeader('Content-Type', 'application/json')
+      request.setHeader('Content-Length', Buffer.byteLength(payload).toString())
+      let data = ''
+      request.on('response', (response) => {
+        response.on('data', (chunk) => { data += chunk.toString() })
+        response.on('end', () => {
+          const status = response.statusCode ?? 0
+          if (status < 200 || status >= 300) {
+            let detail = ''
+            try { detail = JSON.parse(data)?.message ?? JSON.parse(data)?.errorMessages?.[0] ?? '' } catch { detail = data.slice(0, 200) }
+            reject(new Error(`HTTP ${status}${detail ? ': ' + detail : ''}`))
+            return
+          }
+          try { resolve(JSON.parse(data)) } catch { resolve({}) }
+        })
+        response.on('error', reject)
+      })
+      request.on('error', reject)
+      request.write(payload)
+      request.end()
+    })
+  }
+
   private baseUrl(): string {
     return this.settings.get().jiraBaseUrl.replace(/\/+$/, '') // strip trailing slash
   }
@@ -120,6 +150,48 @@ export class TicketService {
       type: 'jira' as const,
       url: `${base}/browse/${issue.key}`
     }))
+  }
+
+  async createJiraTicket(
+    projectKey: string,
+    summary: string,
+    issueType: string,
+    priority?: string,
+    description?: string
+  ): Promise<Ticket> {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    const base = this.baseUrl()
+    if (!base || !jiraEmail || !jiraApiToken) throw new Error('JIRA not configured')
+
+    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
+    const fields: Record<string, unknown> = {
+      project: { key: projectKey },
+      summary,
+      issuetype: { name: issueType }
+    }
+    if (priority) fields.priority = { name: priority }
+    if (description) {
+      fields.description = {
+        type: 'doc',
+        version: 1,
+        content: [{ type: 'paragraph', content: [{ type: 'text', text: description }] }]
+      }
+    }
+
+    const result = await this.httpPost(
+      `${base}/rest/api/3/issue`,
+      { Authorization: `Basic ${auth}`, Accept: 'application/json' },
+      { fields }
+    ) as { id: string; key: string }
+
+    return {
+      id: result.id,
+      key: result.key,
+      title: summary,
+      status: 'To Do',
+      type: 'jira' as const,
+      url: `${base}/browse/${result.key}`
+    }
   }
 
   getJiraBaseUrl(): string {

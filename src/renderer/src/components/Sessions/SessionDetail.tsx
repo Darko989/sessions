@@ -3,7 +3,6 @@ import { Session, GitStatus, ActivityEntry } from '../../types'
 import { useAppStore } from '../../store/appStore'
 import iconVSCode from '../../assets/icons/vscode.png'
 import iconTerminal from '../../assets/icons/terminal.png'
-import iconClaude from '../../assets/icons/claude.jpg'
 import iconCursor from '../../assets/icons/cursor.jpeg'
 
 interface Props {
@@ -274,10 +273,9 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
   }
 
   const apps: AppDef[] = [
-    { id: 'openInTerminal', label: 'Terminal',    icon: <AppIcon src={iconTerminal} label="Terminal"/>,    action: (id) => window.api.sessions.openInTerminal(id) },
-    { id: 'openInClaude',   label: 'Claude Code', icon: <AppIcon src={iconClaude}   label="Claude Code"/>, action: (id) => window.api.sessions.openInClaude(id) },
-    { id: 'openInCursor',   label: 'Cursor',      icon: <AppIcon src={iconCursor}   label="Cursor"/>,      action: (id) => window.api.sessions.openInCursor(id) },
-    { id: 'openInVSCode',   label: 'VS Code',     icon: <AppIcon src={iconVSCode}   label="VS Code"/>,     action: (id) => window.api.sessions.openInVSCode(id) },
+    { id: 'openInTerminal', label: 'Terminal', icon: <AppIcon src={iconTerminal} label="Terminal"/>, action: (id) => window.api.sessions.openInTerminal(id) },
+    { id: 'openInCursor',   label: 'Cursor',   icon: <AppIcon src={iconCursor}   label="Cursor"/>,   action: (id) => window.api.sessions.openInCursor(id) },
+    { id: 'openInVSCode',   label: 'VS Code',  icon: <AppIcon src={iconVSCode}   label="VS Code"/>,  action: (id) => window.api.sessions.openInVSCode(id) },
   ]
 
   const hasCommitsAhead = status && status.aheadBy > 0
@@ -367,21 +365,25 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
               {pushing ? 'Pushing…' : 'Push Branch'}
             </button>
 
-            {/* Create PR button — appears once PR URL is known */}
-            {prUrl && (
-              <button
-                onClick={handleOpenPr}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-accent/30 text-accent hover:bg-accent/5 transition-all"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Create PR
-              </button>
-            )}
+            {/* Create PR button — always visible, disabled until branch is pushed */}
+            <button
+              onClick={handleOpenPr}
+              disabled={!prUrl}
+              title={!prUrl ? 'Push your branch first to create a PR' : 'Open pull request'}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                prUrl
+                  ? 'border-accent/30 text-accent hover:bg-accent/5 cursor-pointer'
+                  : 'border-panel-border text-ink-3 cursor-not-allowed opacity-50'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              {prUrl ? 'Open PR' : 'Create PR'}
+            </button>
 
             {/* Push status hint */}
-            {!hasCommitsAhead && !pushing && !pushMsg && (
+            {!hasCommitsAhead && !pushing && !pushMsg && !prUrl && (
               <span className="text-xs text-ink-3">Make commits in your editor first</span>
             )}
           </div>

@@ -52,7 +52,8 @@ const api = {
     fetchJira: invoke('tickets:fetchJira'),
     fetchShortcut: invoke('tickets:fetchShortcut'),
     searchJira: invoke('tickets:searchJira'),
-    getJiraBaseUrl: invoke('tickets:getJiraBaseUrl')
+    getJiraBaseUrl: invoke('tickets:getJiraBaseUrl'),
+    createJira: invoke('tickets:createJira')
   },
   activity: {
     getAll: invoke('activity:getAll'),

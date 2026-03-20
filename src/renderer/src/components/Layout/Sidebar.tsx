@@ -175,6 +175,173 @@ function groupByStatus(tickets: Ticket[]): { status: string; tickets: Ticket[] }
     .map(([status, tickets]) => ({ status, tickets }))
 }
 
+// ── In-app ticket creation form ────────────────────────────────────────────────
+
+const ISSUE_TYPES = ['Story', 'Bug', 'Task', 'Epic', 'Subtask']
+const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest']
+
+const CreateTicketForm: React.FC<{
+  projectKey: string
+  onCreated: (t: Ticket) => void
+  onBack: () => void
+}> = ({ projectKey, onCreated, onBack }) => {
+  const [summary, setSummary] = useState('')
+  const [issueType, setIssueType] = useState('Story')
+  const [priority, setPriority] = useState('Medium')
+  const [description, setDescription] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleCreate = async () => {
+    if (!summary.trim()) return
+    setCreating(true)
+    setError('')
+    try {
+      const ticket = await window.api.tickets.createJira(
+        projectKey, summary.trim(), issueType, priority, description.trim() || undefined
+      ) as Ticket
+      onCreated(ticket)
+    } catch (err) {
+      setError(String(err).replace(/^Error:\s*/, '').slice(0, 200))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-panel-border">
+        <button onClick={onBack} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <div className="flex items-center gap-2">
+          <JiraLogo size={16}/>
+          <span className="text-sm font-semibold text-ink">Create ticket</span>
+          <span className="text-xs font-mono font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded">{projectKey}</span>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Issue type + priority row */}
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Issue Type</label>
+            <div className="flex flex-wrap gap-1.5">
+              {ISSUE_TYPES.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setIssueType(type)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                    issueType === type
+                      ? 'bg-accent text-white border-accent'
+                      : 'bg-panel-hover text-ink-2 border-panel-border hover:border-ink-3'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Priority */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Priority</label>
+          <div className="flex gap-1.5">
+            {PRIORITIES.map((p) => {
+              const colors: Record<string, string> = {
+                Highest: 'text-red-600 border-red-200 bg-red-50',
+                High: 'text-orange-600 border-orange-200 bg-orange-50',
+                Medium: 'text-yellow-600 border-yellow-200 bg-yellow-50',
+                Low: 'text-blue-600 border-blue-200 bg-blue-50',
+                Lowest: 'text-slate-500 border-slate-200 bg-slate-50',
+              }
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPriority(p)}
+                  className={`flex-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                    priority === p
+                      ? colors[p] + ' ring-1 ring-offset-1 ring-current'
+                      : 'bg-panel-hover text-ink-3 border-panel-border hover:border-ink-3'
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">
+            Summary <span className="text-red-400">*</span>
+          </label>
+          <input
+            autoFocus
+            type="text"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && summary.trim()) handleCreate() }}
+            placeholder="What needs to be done?"
+            className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+          />
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Description</label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add more details…"
+            rows={4}
+            className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+          />
+        </div>
+
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">{error}</div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-4 border-t border-panel-border flex gap-2 justify-end">
+        <button
+          onClick={onBack}
+          className="px-4 py-2 text-sm font-medium text-ink-2 bg-panel-hover border border-panel-border rounded-lg hover:bg-panel-border transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleCreate}
+          disabled={creating || !summary.trim()}
+          className="px-5 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+        >
+          {creating ? (
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+            </svg>
+          )}
+          {creating ? 'Creating…' : 'Create Ticket'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Ticket modal ────────────────────────────────────────────────────────────────
+
 const TicketModal: React.FC<{
   projectKey?: string
   onSelect: (t: Ticket) => void
@@ -186,6 +353,7 @@ const TicketModal: React.FC<{
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState('')
+  const [view, setView] = useState<'list' | 'create'>('list')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -209,6 +377,12 @@ const TicketModal: React.FC<{
     }, 350)
   }, [projectKey])
 
+  const handleCreated = (t: Ticket) => {
+    setTickets((prev) => [t, ...prev])
+    onSelect(t)
+    onClose()
+  }
+
   const displayed = search.trim() ? results : tickets
   const groups = search.trim() ? null : groupByStatus(tickets)
 
@@ -219,90 +393,98 @@ const TicketModal: React.FC<{
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
       <div className="bg-white rounded-2xl shadow-2xl border border-panel-border w-[580px] max-h-[72vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-panel-border">
-          <div className="flex items-center gap-2">
-            <JiraLogo size={16}/>
-            <span className="text-sm font-semibold text-ink">Select ticket</span>
-          </div>
-          <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
 
-        <div className="px-4 py-3 border-b border-panel-border space-y-2">
-          <button
-            onClick={async () => {
-              try {
-                const base = await window.api.tickets.getJiraBaseUrl() as string
-                if (base) window.api.shell.openExternal(`${base}/secure/CreateIssue.jspa`)
-              } catch { /* ignore */ }
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent/90 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
-            </svg>
-            New Ticket
-          </button>
-          <div className="relative">
-            <svg className="absolute left-3 top-2.5 w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <input
-              autoFocus
-              type="text"
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search all JIRA tickets…"
-              className="w-full pl-10 pr-10 py-2 text-sm bg-panel-hover border border-panel-border rounded-xl text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            {(loading || searching) && (
-              <svg className="animate-spin absolute right-3 top-2.5 w-4 h-4 text-ink-3" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-              </svg>
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
-          {!loading && error ? (
-            <div className="px-5 py-8 text-center">
-              <div className="text-sm text-red-600 mb-2">Failed to load tickets</div>
-              <div className="text-xs text-ink-3 font-mono bg-red-50 rounded px-3 py-2">{error}</div>
-              <div className="text-xs text-ink-3 mt-3">Check JIRA credentials in Settings</div>
-            </div>
-          ) : !loading && displayed.length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <div className="text-sm text-ink-2 mb-2">{search ? 'No results found' : 'No tickets found'}</div>
-              <div className="text-xs text-ink-3 leading-relaxed">
-                {search ? 'Try a different search term' : 'Set JIRA project key in Settings → Repositories'}
+        {view === 'create' ? (
+          <CreateTicketForm
+            projectKey={projectKey ?? ''}
+            onCreated={handleCreated}
+            onBack={() => setView('list')}
+          />
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-panel-border">
+              <div className="flex items-center gap-2">
+                <JiraLogo size={16}/>
+                <span className="text-sm font-semibold text-ink">Select ticket</span>
               </div>
-              {!search && (
-                <button
-                  onClick={() => { onClose(); useAppStore.getState().setView('settings') }}
-                  className="mt-3 text-xs text-accent font-medium hover:underline"
-                >Open Settings →</button>
+              <div className="flex items-center gap-2">
+                {projectKey && (
+                  <button
+                    onClick={() => setView('create')}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Ticket
+                  </button>
+                )}
+                <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-b border-panel-border">
+              <div className="relative">
+                <svg className="absolute left-3 top-2.5 w-4 h-4 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search all JIRA tickets…"
+                  className="w-full pl-10 pr-10 py-2 text-sm bg-panel-hover border border-panel-border rounded-xl text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                />
+                {(loading || searching) && (
+                  <svg className="animate-spin absolute right-3 top-2.5 w-4 h-4 text-ink-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {!loading && error ? (
+                <div className="px-5 py-8 text-center">
+                  <div className="text-sm text-red-600 mb-2">Failed to load tickets</div>
+                  <div className="text-xs text-ink-3 font-mono bg-red-50 rounded px-3 py-2">{error}</div>
+                  <div className="text-xs text-ink-3 mt-3">Check JIRA credentials in Settings</div>
+                </div>
+              ) : !loading && displayed.length === 0 ? (
+                <div className="px-5 py-10 text-center">
+                  <div className="text-sm text-ink-2 mb-2">{search ? 'No results found' : 'No tickets found'}</div>
+                  <div className="text-xs text-ink-3 leading-relaxed">
+                    {search ? 'Try a different search term' : 'Set JIRA project key in Settings → Repositories'}
+                  </div>
+                  {!search && (
+                    <button
+                      onClick={() => { onClose(); useAppStore.getState().setView('settings') }}
+                      className="mt-3 text-xs text-accent font-medium hover:underline"
+                    >Open Settings →</button>
+                  )}
+                </div>
+              ) : search.trim() ? (
+                (displayed as Ticket[]).map((t) => <TicketRow key={t.id} ticket={t} onSelect={() => { onSelect(t); onClose() }}/>)
+              ) : (
+                (groups ?? []).map(({ status, tickets: group }) => (
+                  <div key={status}>
+                    <div className="px-5 py-1.5 bg-panel-bg border-b border-panel-border sticky top-0">
+                      <span className="text-[10px] font-bold tracking-wider text-ink-3 uppercase">{status}</span>
+                      <span className="ml-2 text-[10px] text-ink-4">{group.length}</span>
+                    </div>
+                    {group.map((t) => <TicketRow key={t.id} ticket={t} onSelect={() => { onSelect(t); onClose() }}/>)}
+                  </div>
+                ))
               )}
             </div>
-          ) : search.trim() ? (
-            // Search results — flat list
-            (displayed as Ticket[]).map((t) => <TicketRow key={t.id} ticket={t} onSelect={() => { onSelect(t); onClose() }}/>)
-          ) : (
-            // Grouped by status
-            (groups ?? []).map(({ status, tickets: group }) => (
-              <div key={status}>
-                <div className="px-5 py-1.5 bg-panel-bg border-b border-panel-border sticky top-0">
-                  <span className="text-[10px] font-bold tracking-wider text-ink-3 uppercase">{status}</span>
-                  <span className="ml-2 text-[10px] text-ink-4">{group.length}</span>
-                </div>
-                {group.map((t) => <TicketRow key={t.id} ticket={t} onSelect={() => { onSelect(t); onClose() }}/>)}
-              </div>
-            ))
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
