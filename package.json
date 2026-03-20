@@ -2,6 +2,10 @@
   "name": "branchless",
   "version": "0.1.0",
   "description": "Work on multiple tasks in parallel without branch switching",
+  "author": {
+    "name": "Darko",
+    "email": "darko1989@outlook.com"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev -- --no-sandbox",
