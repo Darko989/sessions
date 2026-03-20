@@ -542,7 +542,7 @@ const TicketModal: React.FC<{
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-panel-border w-[580px] max-h-[72vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl border border-panel-border w-[580px] h-[72vh] flex flex-col overflow-hidden">
 
         {view === 'create' ? (
           <CreateTicketForm
