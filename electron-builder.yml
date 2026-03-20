@@ -23,6 +23,10 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.icns
   target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
     - target: zip
       arch:
         - x64
@@ -32,6 +36,22 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   notarize: false
+
+dmg:
+  title: Branchless
+  icon: build/icon.icns
+  background: build/background.tiff
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 150
+      y: 185
+      type: file
+    - x: 390
+      y: 185
+      type: link
+      path: /Applications
 
 # ── Windows ───────────────────────────────────────────────────────────────────
 win:
