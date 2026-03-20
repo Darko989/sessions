@@ -9,7 +9,8 @@ export function registerTicketIpc(ticketService: TicketService): void {
   ipcMain.handle('tickets:getJiraBaseUrl', () => ticketService.getJiraBaseUrl())
   ipcMain.handle('tickets:isJiraConfigured', () => ticketService.isJiraConfigured())
   ipcMain.handle('tickets:fetchJiraProjects', () => ticketService.fetchJiraProjects())
-  ipcMain.handle('tickets:createJira', (_e, projectKey: string, summary: string, issueType: string, priority?: string, description?: string) =>
-    ticketService.createJiraTicket(projectKey, summary, issueType, priority, description)
+  ipcMain.handle('tickets:fetchJiraIssueTypes', (_e, projectKey: string) => ticketService.fetchJiraIssueTypes(projectKey))
+  ipcMain.handle('tickets:createJira', (_e, projectKey: string, summary: string, issueTypeId: string, extraFields: Record<string, unknown>) =>
+    ticketService.createJiraTicket(projectKey, summary, issueTypeId, extraFields)
   )
 }

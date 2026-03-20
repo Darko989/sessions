@@ -55,6 +55,7 @@ const api = {
     getJiraBaseUrl: invoke('tickets:getJiraBaseUrl'),
     isJiraConfigured: invoke('tickets:isJiraConfigured'),
     fetchJiraProjects: invoke('tickets:fetchJiraProjects'),
+    fetchJiraIssueTypes: invoke('tickets:fetchJiraIssueTypes'),
     createJira: invoke('tickets:createJira')
   },
   activity: {

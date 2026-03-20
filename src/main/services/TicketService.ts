@@ -1,4 +1,5 @@
-import { net } from 'electron'
+import https from 'https'
+import http from 'http'
 import { SettingsStore } from './SettingsStore'
 
 export interface Ticket {
@@ -10,6 +11,21 @@ export interface Ticket {
   url?: string
 }
 
+export interface JiraFieldMeta {
+  fieldId: string
+  name: string
+  required: boolean
+  schema: { type: string; system?: string; items?: string }
+  allowedValues?: Array<{ id: string; name: string; value?: string; iconUrl?: string }>
+}
+
+export interface JiraIssueTypeMeta {
+  id: string
+  name: string
+  iconUrl?: string
+  fields: JiraFieldMeta[]
+}
+
 export class TicketService {
   private settings: SettingsStore
 
@@ -17,66 +33,60 @@ export class TicketService {
     this.settings = settings
   }
 
-  private async httpGet(url: string, headers: Record<string, string>): Promise<unknown> {
+  private request(method: string, url: string, headers: Record<string, string>, body?: string): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      const request = net.request({ url, method: 'GET' })
-      for (const [key, val] of Object.entries(headers)) {
-        request.setHeader(key, val)
+      const parsed = new URL(url)
+      const lib = parsed.protocol === 'https:' ? https : http
+      const options = {
+        hostname: parsed.hostname,
+        port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+        path: parsed.pathname + parsed.search,
+        method,
+        headers: {
+          ...headers,
+          ...(body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body).toString() } : {})
+        }
       }
-      let data = ''
-      request.on('response', (response) => {
-        response.on('data', (chunk) => { data += chunk.toString() })
-        response.on('end', () => {
-          const status = response.statusCode ?? 0
+      const req = lib.request(options, (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk.toString() })
+        res.on('end', () => {
+          const status = res.statusCode ?? 0
           if (status < 200 || status >= 300) {
             let detail = ''
-            try { detail = JSON.parse(data)?.message ?? JSON.parse(data)?.errorMessages?.[0] ?? '' } catch { detail = data.slice(0, 200) }
-            reject(new Error(`HTTP ${status}${detail ? ': ' + detail : ''}`))
-            return
-          }
-          try {
-            resolve(JSON.parse(data))
-          } catch {
-            reject(new Error(`Failed to parse response: ${data.slice(0, 200)}`))
-          }
-        })
-        response.on('error', reject)
-      })
-      request.on('error', reject)
-      request.end()
-    })
-  }
-
-  private async httpPost(url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      const request = net.request({ url, method: 'POST' })
-      const payload = JSON.stringify(body)
-      for (const [key, val] of Object.entries(headers)) {
-        request.setHeader(key, val)
-      }
-      request.setHeader('Content-Type', 'application/json')
-      let data = ''
-      request.on('response', (response) => {
-        response.on('data', (chunk) => { data += chunk.toString() })
-        response.on('end', () => {
-          const status = response.statusCode ?? 0
-          if (status < 200 || status >= 300) {
-            let detail = ''
-            try { detail = JSON.parse(data)?.message ?? JSON.parse(data)?.errorMessages?.[0] ?? '' } catch { detail = data.slice(0, 200) }
+            try { detail = JSON.parse(data)?.message ?? JSON.parse(data)?.errorMessages?.[0] ?? JSON.parse(data)?.errors ? JSON.stringify(JSON.parse(data).errors) : '' } catch { detail = data.slice(0, 200) }
             reject(new Error(`HTTP ${status}${detail ? ': ' + detail : ''}`))
             return
           }
           try { resolve(JSON.parse(data)) } catch { resolve({}) }
         })
-        response.on('error', reject)
+        res.on('error', reject)
       })
-      request.on('error', reject)
-      request.end(Buffer.from(payload, 'utf-8'))
+      req.on('error', reject)
+      if (body) req.write(body)
+      req.end()
     })
   }
 
+  private get(url: string, headers: Record<string, string>): Promise<unknown> {
+    return this.request('GET', url, headers)
+  }
+
+  private post(url: string, headers: Record<string, string>, body: unknown): Promise<unknown> {
+    return this.request('POST', url, headers, JSON.stringify(body))
+  }
+
   private baseUrl(): string {
-    return this.settings.get().jiraBaseUrl.replace(/\/+$/, '') // strip trailing slash
+    return this.settings.get().jiraBaseUrl.replace(/\/+$/, '')
+  }
+
+  private jiraAuth(): string {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    return Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
+  }
+
+  private jiraHeaders(): Record<string, string> {
+    return { Authorization: `Basic ${this.jiraAuth()}`, Accept: 'application/json' }
   }
 
   async fetchJiraTickets(projectKey?: string): Promise<Ticket[]> {
@@ -84,15 +94,13 @@ export class TicketService {
     const base = this.baseUrl()
     if (!base || !jiraEmail || !jiraApiToken) return []
 
-    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
     const projectFilter = projectKey ? `project = "${projectKey}" AND ` : ''
     const jql = encodeURIComponent(`${projectFilter}statusCategory != Done ORDER BY updated DESC`)
     const url = `${base}/rest/api/3/search/jql?jql=${jql}&maxResults=100&fields=summary,status,issuetype`
 
-    const data = await this.httpGet(url, {
-      Authorization: `Basic ${auth}`,
-      Accept: 'application/json'
-    }) as { issues?: Array<{ id: string; key: string; fields: { summary: string; status: { name: string }; issuetype: { name: string } } }> }
+    const data = await this.get(url, this.jiraHeaders()) as {
+      issues?: Array<{ id: string; key: string; fields: { summary: string; status: { name: string }; issuetype: { name: string } } }>
+    }
 
     return (data.issues ?? []).map((issue) => ({
       id: issue.id,
@@ -108,10 +116,10 @@ export class TicketService {
     const { shortcutApiToken } = this.settings.get()
     if (!shortcutApiToken) return []
 
-    const data = await this.httpGet('https://api.app.shortcut.com/api/v3/search/stories?query=is:assigned+!is:done&page_size=50', {
-      'Shortcut-Token': shortcutApiToken,
-      'Content-Type': 'application/json'
-    }) as { data?: Array<{ id: number; name: string; story_type: string; app_url: string; workflow_state_id: number }> }
+    const data = await this.get(
+      'https://api.app.shortcut.com/api/v3/search/stories?query=is:assigned+!is:done&page_size=50',
+      { 'Shortcut-Token': shortcutApiToken, 'Content-Type': 'application/json' }
+    ) as { data?: Array<{ id: number; name: string; story_type: string; app_url: string }> }
 
     return (data.data ?? []).map((story) => ({
       id: String(story.id),
@@ -128,17 +136,13 @@ export class TicketService {
     const base = this.baseUrl()
     if (!base || !jiraEmail || !jiraApiToken) return []
 
-    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
     const projectFilter = projectKey ? `project = "${projectKey}" AND ` : ''
-    const jql = encodeURIComponent(
-      `${projectFilter}text ~ "${query.replace(/"/g, '')}" ORDER BY updated DESC`
-    )
+    const jql = encodeURIComponent(`${projectFilter}text ~ "${query.replace(/"/g, '')}" ORDER BY updated DESC`)
     const url = `${base}/rest/api/3/search/jql?jql=${jql}&maxResults=20&fields=summary,status,issuetype`
 
-    const data = await this.httpGet(url, {
-      Authorization: `Basic ${auth}`,
-      Accept: 'application/json'
-    }) as { issues?: Array<{ id: string; key: string; fields: { summary: string; status: { name: string } } }> }
+    const data = await this.get(url, this.jiraHeaders()) as {
+      issues?: Array<{ id: string; key: string; fields: { summary: string; status: { name: string } } }>
+    }
 
     return (data.issues ?? []).map((issue) => ({
       id: issue.id,
@@ -150,35 +154,84 @@ export class TicketService {
     }))
   }
 
+  async fetchJiraProjects(): Promise<Array<{ key: string; name: string }>> {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    const base = this.baseUrl()
+    if (!base || !jiraEmail || !jiraApiToken) return []
+
+    const data = await this.get(
+      `${base}/rest/api/3/project/search?maxResults=100&orderBy=name`,
+      this.jiraHeaders()
+    ) as { values?: Array<{ key: string; name: string }> }
+
+    return (data.values ?? []).map((p) => ({ key: p.key, name: p.name }))
+  }
+
+  async fetchJiraIssueTypes(projectKey: string): Promise<JiraIssueTypeMeta[]> {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    const base = this.baseUrl()
+    if (!base || !jiraEmail || !jiraApiToken) return []
+
+    // Fetch issue types for the project
+    const typesData = await this.get(
+      `${base}/rest/api/3/issue/createmeta/${projectKey}/issuetypes`,
+      this.jiraHeaders()
+    ) as { issueTypes?: Array<{ id: string; name: string; iconUrl?: string }> }
+
+    const issueTypes = typesData.issueTypes ?? []
+
+    // Fetch fields for each issue type in parallel
+    const results = await Promise.allSettled(
+      issueTypes.map(async (it) => {
+        const fieldsData = await this.get(
+          `${base}/rest/api/3/issue/createmeta/${projectKey}/issuetypes/${it.id}`,
+          this.jiraHeaders()
+        ) as { fields?: Array<{
+          fieldId: string
+          name: string
+          required: boolean
+          schema: { type: string; system?: string; items?: string }
+          allowedValues?: Array<{ id: string; name: string; value?: string; iconUrl?: string }>
+        }> }
+
+        return {
+          id: it.id,
+          name: it.name,
+          iconUrl: it.iconUrl,
+          fields: (fieldsData.fields ?? []).filter((f) =>
+            // Only include renderable field types
+            ['string', 'number', 'option', 'priority', 'user', 'array', 'date', 'datetime'].includes(f.schema.type) ||
+            f.schema.system === 'description'
+          )
+        } as JiraIssueTypeMeta
+      })
+    )
+
+    return results
+      .filter((r): r is PromiseFulfilledResult<JiraIssueTypeMeta> => r.status === 'fulfilled')
+      .map((r) => r.value)
+  }
+
   async createJiraTicket(
     projectKey: string,
     summary: string,
-    issueType: string,
-    priority?: string,
-    description?: string
+    issueTypeId: string,
+    extraFields: Record<string, unknown>
   ): Promise<Ticket> {
     const { jiraEmail, jiraApiToken } = this.settings.get()
     const base = this.baseUrl()
     if (!base || !jiraEmail || !jiraApiToken) throw new Error('JIRA not configured')
 
-    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
     const fields: Record<string, unknown> = {
       project: { key: projectKey },
       summary,
-      issuetype: { name: issueType }
-    }
-    if (priority) fields.priority = { name: priority }
-    if (description) {
-      fields.description = {
-        type: 'doc',
-        version: 1,
-        content: [{ type: 'paragraph', content: [{ type: 'text', text: description }] }]
-      }
+      issuetype: { id: issueTypeId },
+      ...extraFields
     }
 
-    const result = await this.httpPost(
+    const result = await this.post(
       `${base}/rest/api/3/issue`,
-      { Authorization: `Basic ${auth}`, Accept: 'application/json', 'X-Atlassian-Token': 'no-check' },
+      this.jiraHeaders(),
       { fields }
     ) as { id: string; key: string }
 
@@ -190,20 +243,6 @@ export class TicketService {
       type: 'jira' as const,
       url: `${base}/browse/${result.key}`
     }
-  }
-
-  async fetchJiraProjects(): Promise<Array<{ key: string; name: string }>> {
-    const { jiraEmail, jiraApiToken } = this.settings.get()
-    const base = this.baseUrl()
-    if (!base || !jiraEmail || !jiraApiToken) return []
-
-    const auth = Buffer.from(`${jiraEmail}:${jiraApiToken}`).toString('base64')
-    const data = await this.httpGet(
-      `${base}/rest/api/3/project/search?maxResults=100&orderBy=name`,
-      { Authorization: `Basic ${auth}`, Accept: 'application/json' }
-    ) as { values?: Array<{ key: string; name: string }> }
-
-    return (data.values ?? []).map((p) => ({ key: p.key, name: p.name }))
   }
 
   isJiraConfigured(): boolean {

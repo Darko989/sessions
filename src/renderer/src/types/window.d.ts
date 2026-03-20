@@ -48,6 +48,7 @@ interface WindowAPI {
     getJiraBaseUrl: IpcFn
     isJiraConfigured: IpcFn
     fetchJiraProjects: IpcFn
+    fetchJiraIssueTypes: IpcFn
     createJira: IpcFn
   }
   activity: {
