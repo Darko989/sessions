@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run build
@@ -42,14 +42,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run build
 
-      - name: Resize icons for Linux
+      - name: Install Linux build deps
         run: |
-          sudo apt-get install -y imagemagick 2>/dev/null || true
+          sudo apt-get update -y
+          sudo apt-get install -y imagemagick rpm
           mkdir -p build/icons
           for s in 16 24 32 48 64 128 256 512; do
             convert build/icon.png -resize ${s}x${s} build/icons/${s}x${s}.png 2>/dev/null || true
@@ -67,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run build
