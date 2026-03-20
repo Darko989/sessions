@@ -23,10 +23,6 @@ mac:
   category: public.app-category.developer-tools
   icon: build/icon.icns
   target:
-    - target: dmg
-      arch:
-        - x64
-        - arm64
     - target: zip
       arch:
         - x64
@@ -36,10 +32,6 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
   notarize: false
-
-dmg:
-  title: Branchless
-  icon: build/icon.icns
 
 # ── Windows ───────────────────────────────────────────────────────────────────
 win:
