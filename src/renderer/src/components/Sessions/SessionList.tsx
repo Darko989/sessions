@@ -11,7 +11,7 @@ const DeleteConfirmModal: React.FC<{
 }> = ({ session, onConfirm, onCancel }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
-    <div className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-2xl shadow-2xl border border-panel-border overflow-hidden">
+    <div className="relative z-10 w-full max-w-sm mx-4 bg-panel-card rounded-2xl shadow-2xl border border-panel-border overflow-hidden">
       <div className="p-6">
         <div className="flex items-start gap-4 mb-5">
           <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">

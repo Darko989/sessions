@@ -1,6 +1,24 @@
 import { create } from 'zustand'
 import { Repository, Session, Settings } from '../types'
 
+type Theme = 'light' | 'dark'
+
+function getInitialTheme(): Theme {
+  try {
+    const stored = localStorage.getItem('branchless-theme')
+    if (stored === 'dark' || stored === 'light') return stored
+  } catch { /* ignore */ }
+  return 'light'
+}
+
+function applyTheme(theme: Theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  try { localStorage.setItem('branchless-theme', theme) } catch { /* ignore */ }
+}
+
+// Apply on load
+applyTheme(getInitialTheme())
+
 interface AppState {
   repos: Repository[]
   sessions: Session[]
@@ -8,6 +26,7 @@ interface AppState {
   selectedSessionId: string | null
   settings: Settings | null
   view: 'sessions' | 'settings' | 'activity'
+  theme: Theme
   isLoadingRepos: boolean
   isLoadingSessions: boolean
 
@@ -17,6 +36,8 @@ interface AppState {
   setSelectedSession: (id: string | null) => void
   setSettings: (settings: Settings) => void
   setView: (view: AppState['view']) => void
+  setTheme: (theme: Theme) => void
+  toggleTheme: () => void
   setLoadingRepos: (v: boolean) => void
   setLoadingSessions: (v: boolean) => void
 
@@ -33,6 +54,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedSessionId: null,
   settings: null,
   view: 'sessions',
+  theme: getInitialTheme(),
   isLoadingRepos: false,
   isLoadingSessions: false,
 
@@ -42,6 +64,8 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedSession: (id) => set({ selectedSessionId: id }),
   setSettings: (settings) => set({ settings }),
   setView: (view) => set({ view }),
+  setTheme: (theme) => { applyTheme(theme); set({ theme }) },
+  toggleTheme: () => set((s) => { const next = s.theme === 'light' ? 'dark' : 'light' as Theme; applyTheme(next); return { theme: next } }),
   setLoadingRepos: (v) => set({ isLoadingRepos: v }),
   setLoadingSessions: (v) => set({ isLoadingSessions: v }),
 

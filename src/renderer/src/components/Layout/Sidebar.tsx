@@ -6,25 +6,15 @@ import { SessionList } from '../Sessions/SessionList'
 import { Repository, Ticket } from '../../types'
 
 // ── Logos ──────────────────────────────────────────────────────────────────────
+import iconJira from '../../assets/icons/jira.png'
+import iconShortcut from '../../assets/icons/shortcut.png'
+
 const JiraLogo = ({ size = 14 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <path
-      d="M11.975 0C9.038 5.975 9.61 5.301 3.548 11.486c-.33.335-.33.876 0 1.211L11.975 24c3.044-6.143 2.329-5.39 8.477-11.515.33-.335.33-.876 0-1.211L11.975 0z"
-      fill="url(#jira-g)"
-    />
-    <defs>
-      <linearGradient id="jira-g" x1="11.975" y1="0" x2="11.975" y2="24" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#2684FF"/><stop offset="1" stopColor="#0052CC"/>
-      </linearGradient>
-    </defs>
-  </svg>
+  <img src={iconJira} alt="JIRA" width={size} height={size} className="object-contain flex-shrink-0" draggable={false}/>
 )
 
 const ShortcutLogo = ({ size = 14 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="12" fill="#6515DD"/>
-    <path d="M7 12h10M12 7l5 5-5 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
+  <img src={iconShortcut} alt="Shortcut" width={size} height={size} className="object-contain flex-shrink-0" draggable={false}/>
 )
 
 // ── Branch modal ───────────────────────────────────────────────────────────────
@@ -47,7 +37,10 @@ const BranchModal: React.FC<{
     const fetchAll = async () => {
       setLoading(true)
       const all: BranchEntry[] = []
-      for (const repo of repos) {
+      const reposToFetch = selectedRepoId
+        ? repos.filter(r => r.id === selectedRepoId)
+        : repos
+      for (const repo of reposToFetch) {
         try {
           const branches = await window.api.repos.getBranches(repo.path) as string[]
           for (const b of branches) all.push({ repo, branch: b })
@@ -57,7 +50,7 @@ const BranchModal: React.FC<{
       setLoading(false)
     }
     fetchAll()
-  }, [repos.length])
+  }, [repos.length, selectedRepoId])
 
   const filtered = search.trim()
     ? entries.filter(e =>
@@ -72,7 +65,7 @@ const BranchModal: React.FC<{
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-panel-border w-[520px] max-h-[70vh] flex flex-col overflow-hidden">
+      <div className="bg-panel-card rounded-2xl shadow-2xl border border-panel-border w-[520px] max-h-[70vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-panel-border">
           <div>
             <span className="text-sm font-semibold text-ink">Select base branch</span>
@@ -116,7 +109,7 @@ const BranchModal: React.FC<{
                   <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM18 9c0 3.314-5.373 6-12 6"/>
                   </svg>
-                  <span className="font-mono text-sm text-ink flex-1 truncate">{e.branch}</span>
+                  <span className="text-[13px] font-semibold text-ink flex-1 truncate">{e.branch}</span>
                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: e.repo.color, backgroundColor: e.repo.color + '20' }}>
                     {e.repo.name}
                   </span>
@@ -323,14 +316,14 @@ const CreateTicketForm: React.FC<{
             <select
               value={projectKey}
               onChange={(e) => setProjectKey(e.target.value)}
-              className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
               {projects.map((p) => <option key={p.key} value={p.key}>{p.key} — {p.name}</option>)}
             </select>
           ) : (
             <input autoFocus type="text" value={projectKey} onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
               placeholder="e.g. PROJ"
-              className="w-full text-sm font-mono bg-white border border-panel-border rounded-xl px-3 py-2 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="w-full text-sm font-mono bg-panel-card border border-panel-border rounded-xl px-3 py-2 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           )}
         </div>
@@ -373,7 +366,7 @@ const CreateTicketForm: React.FC<{
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
               placeholder="What needs to be done?"
-              className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
         )}
@@ -418,7 +411,7 @@ const CreateTicketForm: React.FC<{
                 {label}
                 <textarea value={val} onChange={(e) => setField(f.fieldId, e.target.value)}
                   placeholder="Add details…" rows={4}
-                  className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
+                  className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"
                 />
               </div>
             )
@@ -430,7 +423,7 @@ const CreateTicketForm: React.FC<{
               <div key={f.fieldId}>
                 {label}
                 <input type="number" value={val} onChange={(e) => setField(f.fieldId, e.target.value)}
-                  className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
             )
@@ -442,7 +435,7 @@ const CreateTicketForm: React.FC<{
               <div key={f.fieldId}>
                 {label}
                 <input type="date" value={val} onChange={(e) => setField(f.fieldId, e.target.value)}
-                  className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
             )
@@ -454,7 +447,7 @@ const CreateTicketForm: React.FC<{
               <div key={f.fieldId}>
                 {label}
                 <input type="text" value={val} onChange={(e) => setField(f.fieldId, e.target.value)}
-                  className="w-full text-sm bg-white border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
             )
@@ -542,7 +535,7 @@ const TicketModal: React.FC<{
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]"
       onMouseDown={(e) => { if (e.target === overlayRef.current) onClose() }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl border border-panel-border w-[580px] h-[72vh] flex flex-col overflow-hidden">
+      <div className="bg-panel-card rounded-2xl shadow-2xl border border-panel-border w-[580px] h-[72vh] flex flex-col overflow-hidden">
 
         {view === 'create' ? (
           <CreateTicketForm
@@ -655,7 +648,7 @@ function makeBranchName(ticket: Ticket | null, baseBranch: string): string {
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 
 export const Sidebar: React.FC = () => {
-  const { repos, selectedRepoId, setSelectedRepo } = useAppStore()
+  const { repos, selectedRepoId, setSelectedRepo, settings, theme, toggleTheme } = useAppStore()
   const { addRepository, pickDirectory } = useRepos()
   const { createSession } = useSessions()
   const { setSelectedSession } = useAppStore()
@@ -677,6 +670,26 @@ export const Sidebar: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [showTicketModal, setShowTicketModal] = useState(false)
   const [showBranchModal, setShowBranchModal] = useState(false)
+  const [showRepoDropdown, setShowRepoDropdown] = useState(false)
+  const repoDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Auto-select when only one repo
+  useEffect(() => {
+    if (repos.length === 1 && !selectedRepoId) {
+      setSelectedRepo(repos[0].id)
+    }
+  }, [repos.length])
+
+  // Close repo dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (repoDropdownRef.current && !repoDropdownRef.current.contains(e.target as Node)) {
+        setShowRepoDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   // Sync selectedRepo with store
   useEffect(() => {
@@ -767,44 +780,107 @@ export const Sidebar: React.FC = () => {
       {/* Title bar */}
       <div className="titlebar-drag h-10 flex items-center justify-between px-3 flex-shrink-0">
         <span className="no-drag text-[11px] font-bold text-ink-3 tracking-widest uppercase">Branchless</span>
-        <button
-          onClick={() => useAppStore.getState().setView(
-            useAppStore.getState().view === 'settings' ? 'sessions' : 'settings'
-          )}
-          className="no-drag w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover"
-          title="Settings"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-          </svg>
-        </button>
+        <div className="no-drag flex items-center gap-1">
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+              </svg>
+            )}
+          </button>
+          {/* Settings */}
+          <button
+            onClick={() => useAppStore.getState().setView(
+              useAppStore.getState().view === 'settings' ? 'sessions' : 'settings'
+            )}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover"
+            title="Settings"
+          >
+            <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Repo selector */}
       <div className="px-3 pb-2 flex-shrink-0">
         <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
-            <svg className="absolute left-2.5 top-2 w-3.5 h-3.5 text-ink-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-            </svg>
-            <select
-              value={selectedRepoId ?? ''}
-              onChange={(e) => setSelectedRepo(e.target.value || null)}
-              className="w-full appearance-none bg-panel-hover border border-panel-border rounded-lg pl-8 pr-6 py-1.5 text-sm font-medium text-ink cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30"
+          <div className="relative flex-1" ref={repoDropdownRef}>
+            <button
+              onClick={() => setShowRepoDropdown(!showRepoDropdown)}
+              className="w-full flex items-center gap-2 bg-panel-card border border-panel-border rounded-xl pl-3 pr-8 py-2.5 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 shadow-sm hover:border-ink-4 transition-colors"
             >
-              <option value="">All repos</option>
-              {repos.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-            </select>
-            <svg className="absolute right-2 top-2 w-3.5 h-3.5 text-ink-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {selectedRepoId && repos.find(r => r.id === selectedRepoId) ? (
+                <>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: repos.find(r => r.id === selectedRepoId)?.color ?? '#6c51cf' }}/>
+                  <span className="text-[13px] font-semibold text-ink truncate">{repos.find(r => r.id === selectedRepoId)?.name}</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                  </svg>
+                  <span className="text-[13px] font-semibold text-ink">All repos</span>
+                </>
+              )}
+            </button>
+            <svg className="absolute right-2.5 top-3 w-3.5 h-3.5 text-ink-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/>
             </svg>
+
+            {showRepoDropdown && (
+              <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-panel-card border border-panel-border rounded-xl shadow-xl overflow-hidden">
+                {repos.length > 1 && (
+                  <button
+                    onClick={() => { setSelectedRepo(null); setShowRepoDropdown(false) }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-panel-hover transition-colors ${!selectedRepoId ? 'bg-accent/5' : ''}`}
+                  >
+                    <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <span className="text-[13px] font-medium text-ink">All repos</span>
+                    {!selectedRepoId && (
+                      <svg className="w-3.5 h-3.5 text-accent ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+                {repos.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => { setSelectedRepo(r.id); setShowRepoDropdown(false) }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-panel-hover transition-colors border-t border-panel-border/50 ${selectedRepoId === r.id ? 'bg-accent/5' : ''}`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: r.color ?? '#6c51cf' }}/>
+                    <span className="text-[13px] font-medium text-ink truncate flex-1">{r.name}</span>
+                    <span className="text-[10px] text-ink-3 font-mono truncate max-w-[80px]">{r.path.split('/').pop()}</span>
+                    {selectedRepoId === r.id && (
+                      <svg className="w-3.5 h-3.5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowAddRepo(!showAddRepo)}
             title="Add repository"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover border border-transparent hover:border-panel-border"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover border border-panel-border hover:border-ink-4 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
@@ -821,7 +897,7 @@ export const Sidebar: React.FC = () => {
               onChange={(e) => setRepoPath(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddRepo()}
               autoFocus
-              className="flex-1 min-w-0 bg-white border border-panel-border rounded-lg px-2.5 py-1.5 text-xs text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+              className="flex-1 min-w-0 bg-panel-card border border-panel-border rounded-lg px-2.5 py-1.5 text-xs text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
             <button onClick={handlePickDir} className="px-2 rounded-lg border border-panel-border hover:bg-panel-hover text-ink-2 text-xs">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -847,12 +923,12 @@ export const Sidebar: React.FC = () => {
           <button
             onClick={() => setShowBranchModal(true)}
             disabled={repos.length === 0}
-            className="flex-1 flex items-center gap-2 px-3 py-1.5 bg-panel-hover border border-panel-border rounded-lg hover:border-ink-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+            className="flex-1 flex items-center gap-2 px-3 py-2 bg-panel-card border border-panel-border rounded-xl shadow-sm hover:border-ink-4 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
           >
             <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 3v12M18 9a3 3 0 100-6 3 3 0 000 6zM6 21a3 3 0 100-6 3 3 0 000 6zM18 9c0 3.314-5.373 6-12 6"/>
             </svg>
-            <span className="font-mono text-xs text-ink flex-1 truncate">
+            <span className="text-[13px] font-semibold text-ink flex-1 truncate">
               {baseBranch || 'pick base branch…'}
             </span>
             <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -864,10 +940,10 @@ export const Sidebar: React.FC = () => {
             onClick={handleFetchOrigin}
             disabled={!selectedRepo || fetching}
             title={fetchDone ? 'Up to date!' : 'Fetch latest from origin'}
-            className={`w-[30px] h-[30px] flex-shrink-0 rounded-lg border flex items-center justify-center transition-all ${
+            className={`w-[30px] h-[30px] flex-shrink-0 rounded-lg flex items-center justify-center transition-all ${
               fetchDone
-                ? 'border-accent/30 bg-accent/10 text-accent'
-                : 'border-panel-border bg-panel-hover text-ink-2 hover:border-ink-3 hover:text-ink disabled:opacity-40'
+                ? 'bg-green-500 text-white shadow-sm'
+                : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm disabled:opacity-40'
             }`}
           >
             {fetchDone ? (
@@ -896,7 +972,7 @@ export const Sidebar: React.FC = () => {
                 setBranchEdited(true)
               }}
               placeholder="feature/my-branch"
-              className="w-full font-mono text-xs bg-white border border-panel-border rounded-lg px-2.5 py-1.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 pr-7"
+              className="w-full text-[13px] font-semibold bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 pr-7 shadow-sm"
             />
             {branchEdited && (
               <button
@@ -915,7 +991,7 @@ export const Sidebar: React.FC = () => {
         {/* Ticket picker */}
         <button
           onClick={() => setShowTicketModal(true)}
-          className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-xs ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all shadow-sm ${
             selectedTicket
               ? 'bg-accent/10 border-accent/30 text-accent'
               : 'bg-panel-hover border-panel-border text-ink-2 hover:border-ink-3 hover:text-ink'
@@ -937,8 +1013,8 @@ export const Sidebar: React.FC = () => {
             </>
           ) : (
             <>
-              <JiraLogo size={13}/>
-              <span className="flex-1 text-left">Link JIRA / Shortcut ticket</span>
+              {settings?.shortcutApiToken && !settings?.jiraBaseUrl ? <ShortcutLogo size={13}/> : <JiraLogo size={13}/>}
+              <span className="flex-1 text-left text-[13px] font-medium">{settings?.shortcutApiToken && !settings?.jiraBaseUrl ? 'Link Shortcut ticket' : settings?.jiraBaseUrl ? 'Link JIRA ticket' : 'Link ticket'}</span>
               <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/>
               </svg>
@@ -974,7 +1050,7 @@ export const Sidebar: React.FC = () => {
         {/* Summary line */}
         {selectedRepo && baseBranch && branchName && !creating && (
           <div className="text-[10px] text-ink-3 text-center leading-relaxed">
-            Creates branch <span className="font-mono text-ink-2">{branchName}</span> from <span className="font-mono text-ink-2">{baseBranch}</span>
+            Creates <span className="font-mono text-[11px] font-semibold text-ink-2">{branchName}</span> from <span className="font-mono text-[11px] font-semibold text-ink-2">{baseBranch}</span>
           </div>
         )}
       </div>

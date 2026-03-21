@@ -27,8 +27,15 @@ const api = {
     openInVSCode: invoke('sessions:openInVSCode'),
     openInClaude: invoke('sessions:openInClaude'),
     openInCursor: invoke('sessions:openInCursor'),
+    openInIntelliJ: invoke('sessions:openInIntelliJ'),
+    openInPhpStorm: invoke('sessions:openInPhpStorm'),
     openInTerminal: invoke('sessions:openInTerminal'),
-    openInFinder: invoke('sessions:openInFinder')
+    openInFinder: invoke('sessions:openInFinder'),
+    getDiffCompare: invoke('sessions:getDiffCompare'),
+    getDiffStats: invoke('sessions:getDiffStats'),
+    getFileDiffVsBase: invoke('sessions:getFileDiffVsBase'),
+    runHealthChecks: invoke('sessions:runHealthChecks'),
+    analyzeCodebase: invoke('sessions:analyzeCodebase')
   },
   repos: {
     getAll: invoke('repos:getAll'),

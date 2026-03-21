@@ -1,31 +1,32 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ['./src/renderer/src/**/*.{js,ts,jsx,tsx}', './src/renderer/index.html'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         accent: {
-          DEFAULT: '#166534',   // dark green
-          hover:   '#14532d',
-          light:   '#f0fdf4',
-          muted:   '#bbf7d0',
-          text:    '#15803d',
+          DEFAULT: 'var(--color-accent)',
+          hover:   'var(--color-accent-hover)',
+          light:   'var(--color-accent-light)',
+          muted:   'var(--color-accent-muted)',
+          text:    'var(--color-accent-text)',
         },
         panel: {
-          bg:      '#f2ede8',
-          sidebar: '#ffffff',
-          card:    '#ffffff',
-          border:  '#e5dfd8',
-          hover:   '#f7f4f1',
+          bg:      'var(--color-panel-bg)',
+          sidebar: 'var(--color-panel-sidebar)',
+          card:    'var(--color-panel-card)',
+          border:  'var(--color-panel-border)',
+          hover:   'var(--color-panel-hover)',
         },
         ink: {
-          DEFAULT: '#1c1917',
-          2: '#57534e',
-          3: '#a8a29e',
-          4: '#d6d3d1',
+          DEFAULT: 'var(--color-ink)',
+          2: 'var(--color-ink-2)',
+          3: 'var(--color-ink-3)',
+          4: 'var(--color-ink-4)',
         },
-        merged:  '#7c3aed',   // purple for merged branches
-        opened:  '#16a34a',   // green for open branches
+        merged:  '#7c3aed',
+        opened:  '#16a34a',
       },
     }
   },

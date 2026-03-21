@@ -77,30 +77,9 @@ export const SettingsPanel: React.FC = () => {
 
       <div className="space-y-6">
         {/* General */}
-        <section className="bg-white rounded-xl border border-panel-border p-5">
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
           <h3 className="text-sm font-semibold text-ink mb-4">General</h3>
           <div className="space-y-4">
-            <Field label="Default Base Branch">
-              <input
-                type="text"
-                value={form.defaultBaseBranch}
-                onChange={(e) => update('defaultBaseBranch', e.target.value)}
-                className={inputCls}
-                placeholder="main"
-              />
-            </Field>
-            <Field label="Default Editor">
-              <select
-                value={form.defaultEditor}
-                onChange={(e) => update('defaultEditor', e.target.value)}
-                className={inputCls}
-              >
-                <option value="vscode">VS Code</option>
-                <option value="cursor">Cursor</option>
-                <option value="pycharm">PyCharm</option>
-                <option value="zed">Zed</option>
-              </select>
-            </Field>
             <Field label="Sessions Directory" hint="Where worktrees are stored">
               <div className="flex gap-2">
                 <input
@@ -118,7 +97,7 @@ export const SettingsPanel: React.FC = () => {
         </section>
 
         {/* Repositories */}
-        <section className="bg-white rounded-xl border border-panel-border p-5">
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
           <h3 className="text-sm font-semibold text-ink mb-4">Repositories</h3>
           {repos.length === 0 ? (
             <div className="text-sm text-slate-600">No repositories added yet.</div>
@@ -142,21 +121,6 @@ export const SettingsPanel: React.FC = () => {
                       Remove
                     </Button>
                   </div>
-                  <div className="flex items-center gap-2 pt-1 border-t border-panel-border">
-                    <label className="text-xs text-ink-3 flex-shrink-0 w-28">JIRA project key</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. PROJ"
-                      defaultValue={r.jiraProjectKey ?? ''}
-                      onBlur={async (e) => {
-                        const val = e.target.value.trim().toUpperCase()
-                        await window.api.repos.update(r.id, { jiraProjectKey: val || undefined } as never)
-                        const all = await window.api.repos.getAll() as Repository[]
-                        setRepos(all)
-                      }}
-                      className="flex-1 bg-white border border-panel-border rounded px-2 py-1 text-xs font-mono text-ink focus:outline-none focus:ring-1 focus:ring-accent/40"
-                    />
-                  </div>
                 </div>
               ))}
             </div>
@@ -164,7 +128,7 @@ export const SettingsPanel: React.FC = () => {
         </section>
 
         {/* JIRA */}
-        <section className="bg-white rounded-xl border border-panel-border p-5">
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
           <h3 className="text-sm font-semibold text-ink mb-4">JIRA Integration</h3>
           <div className="space-y-4">
             <Field label="Base URL" hint="e.g. https://yourcompany.atlassian.net">
@@ -196,7 +160,7 @@ export const SettingsPanel: React.FC = () => {
         </section>
 
         {/* Shortcut */}
-        <section className="bg-white rounded-xl border border-panel-border p-5">
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
           <h3 className="text-sm font-semibold text-ink mb-4">Shortcut Integration</h3>
           <Field label="API Token">
             <input
@@ -210,7 +174,7 @@ export const SettingsPanel: React.FC = () => {
         </section>
 
         {/* MCP */}
-        <section className="bg-white rounded-xl border border-panel-border p-5">
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
           <h3 className="text-sm font-semibold text-ink mb-4">MCP Integration</h3>
           <div className="space-y-4">
             <Field label="Server URL">

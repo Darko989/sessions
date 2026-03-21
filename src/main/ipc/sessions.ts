@@ -54,25 +54,62 @@ function openVSCode(cwd: string): Promise<void> {
 }
 
 function openClaude(cwd: string): Promise<void> {
-  // Claude Code CLI opens in whatever directory it's launched from.
-  // Spawn with cwd set to the session directory — do NOT pass cwd as an argument.
+  // Claude Code is a TUI — it needs a terminal to run in.
+  // Open a terminal and launch `claude` inside it.
   return new Promise((resolve, reject) => {
-    const proc = spawn('claude', [], {
-      cwd,
-      detached: true,
-      stdio: 'ignore',
-      env: { ...process.env }
-    })
-    proc.on('error', reject)
-    proc.unref()
-    // Give it a moment to start — if it errors immediately we'll catch it
-    setTimeout(resolve, 300)
+    if (process.platform === 'darwin') {
+      spawn('osascript', [
+        '-e', `tell application "Terminal" to do script "cd ${cwd.replace(/"/g, '\\\\"')} && claude"`,
+        '-e', 'tell application "Terminal" to activate'
+      ], { detached: true, stdio: 'ignore' }).unref()
+      resolve()
+    } else if (process.platform === 'win32') {
+      spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/K', `cd /d "${cwd}" && claude`], { detached: true, stdio: 'ignore' }).unref()
+      resolve()
+    } else {
+      // Linux — try common terminals
+      const terminals: [string, string[]][] = [
+        ['gnome-terminal', ['--', 'bash', '-c', `cd "${cwd}" && claude; exec bash`]],
+        ['konsole', ['-e', 'bash', '-c', `cd "${cwd}" && claude; exec bash`]],
+        ['xfce4-terminal', ['-e', `bash -c 'cd "${cwd}" && claude; exec bash'`]],
+        ['xterm', ['-e', `bash -c 'cd "${cwd}" && claude; exec bash'`]]
+      ]
+      const tryNext = (i: number) => {
+        if (i >= terminals.length) { reject(new Error('No supported terminal found')); return }
+        const [t, a] = terminals[i]
+        execFile('which', [t], (err) => {
+          if (err) { tryNext(i + 1); return }
+          spawn(t, a, { detached: true, stdio: 'ignore', cwd }).unref()
+          resolve()
+        })
+      }
+      tryNext(0)
+    }
   })
 }
 
 function openCursor(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn('cursor', [cwd], { detached: true, stdio: 'ignore' })
+    proc.on('error', reject)
+    proc.unref()
+    setTimeout(resolve, 300)
+  })
+}
+
+function openIntelliJ(cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // IntelliJ IDEA CLI: 'idea' on all platforms
+    const proc = spawn('idea', [cwd], { detached: true, stdio: 'ignore' })
+    proc.on('error', reject)
+    proc.unref()
+    setTimeout(resolve, 300)
+  })
+}
+
+function openPhpStorm(cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('phpstorm', [cwd], { detached: true, stdio: 'ignore' })
     proc.on('error', reject)
     proc.unref()
     setTimeout(resolve, 300)
@@ -189,6 +226,22 @@ export function registerSessionIpc(
     activityLog.add('session_opened', `Opened "${session.name}" in Terminal`, { sessionId })
   })
 
+  ipcMain.handle('sessions:openInIntelliJ', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    await openIntelliJ(session.worktreePath)
+    sessionManager.markOpened(sessionId)
+    activityLog.add('session_opened', `Opened "${session.name}" in IntelliJ IDEA`, { sessionId })
+  })
+
+  ipcMain.handle('sessions:openInPhpStorm', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    await openPhpStorm(session.worktreePath)
+    sessionManager.markOpened(sessionId)
+    activityLog.add('session_opened', `Opened "${session.name}" in PhpStorm`, { sessionId })
+  })
+
   ipcMain.handle('sessions:openInFinder', (_e, sessionId: string) => {
     const session = sessionManager.getById(sessionId)
     if (!session) throw new Error('Session not found')
@@ -198,7 +251,7 @@ export function registerSessionIpc(
   ipcMain.handle('sessions:getLog', async (_e, sessionId: string) => {
     const session = sessionManager.getById(sessionId)
     if (!session) throw new Error('Session not found')
-    return gitService.getCommitLog(session.worktreePath)
+    return gitService.getCommitLog(session.worktreePath, session.baseBranch)
   })
 
   ipcMain.handle('sessions:getChangedFiles', async (_e, sessionId: string) => {
@@ -211,5 +264,35 @@ export function registerSessionIpc(
     const session = sessionManager.getById(sessionId)
     if (!session) throw new Error('Session not found')
     return gitService.getFileDiff(session.worktreePath, file)
+  })
+
+  ipcMain.handle('sessions:getDiffCompare', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getDiffCompare(session.worktreePath, session.baseBranch)
+  })
+
+  ipcMain.handle('sessions:getDiffStats', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getDiffStats(session.worktreePath, session.baseBranch)
+  })
+
+  ipcMain.handle('sessions:getFileDiffVsBase', async (_e, sessionId: string, file: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getFileDiffVsBase(session.worktreePath, session.baseBranch, file)
+  })
+
+  ipcMain.handle('sessions:runHealthChecks', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.runHealthChecks(session.worktreePath)
+  })
+
+  ipcMain.handle('sessions:analyzeCodebase', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.analyzeCodebase(session.worktreePath, session.baseBranch)
   })
 }

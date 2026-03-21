@@ -20,8 +20,15 @@ interface WindowAPI {
     openInClaude: IpcFn
     openInCursor: IpcFn
     openInPyCharm: IpcFn
+    openInIntelliJ: IpcFn
+    openInPhpStorm: IpcFn
     openInTerminal: IpcFn
     openInFinder: IpcFn
+    getDiffCompare: IpcFn
+    getDiffStats: IpcFn
+    getFileDiffVsBase: IpcFn
+    runHealthChecks: IpcFn
+    analyzeCodebase: IpcFn
   }
   repos: {
     getAll: IpcFn
