@@ -1,9 +1,4 @@
 import { app, BrowserWindow, nativeTheme, ipcMain, net } from 'electron'
-
-// Required on Linux when running without a properly configured SUID sandbox
-if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('no-sandbox')
-}
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'

@@ -17,6 +17,7 @@ files:
   - '!{tailwind,postcss}.config.*'
 
 npmRebuild: false
+afterPack: build/afterPack.js
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
 mac:
@@ -74,8 +75,6 @@ nsis:
 linux:
   icon: build/icons
   category: Development
-  executableArgs:
-    - --no-sandbox
   target:
     - target: AppImage
       arch:
