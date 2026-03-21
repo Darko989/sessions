@@ -1,6 +1,6 @@
 {
   "name": "branchless",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Work on multiple tasks in parallel without branch switching",
   "author": {
     "name": "Darko",

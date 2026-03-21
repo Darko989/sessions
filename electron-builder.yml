@@ -74,6 +74,8 @@ nsis:
 linux:
   icon: build/icons
   category: Development
+  executableArgs:
+    - --no-sandbox
   target:
     - target: AppImage
       arch:

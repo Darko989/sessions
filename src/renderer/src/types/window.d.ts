@@ -66,7 +66,11 @@ interface WindowAPI {
     openExternal: (url: string) => Promise<void>
   }
   app: {
-    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string }) => void) => void
+    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string; canAutoUpdate: boolean }) => void) => void
+    onUpdateProgress: (cb: (info: { percent: number }) => void) => void
+    onUpdateReady: (cb: () => void) => void
+    downloadUpdate: () => Promise<void>
+    installUpdate: () => Promise<void>
   }
 }
 

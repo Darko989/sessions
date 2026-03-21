@@ -70,9 +70,17 @@ const api = {
     getForSession: invoke('activity:getForSession')
   },
   app: {
-    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string }) => void) => {
+    onUpdateAvailable: (cb: (info: { latestVersion: string; releaseUrl: string; canAutoUpdate: boolean }) => void) => {
       ipcRenderer.on('app:updateAvailable', (_e, info) => cb(info))
-    }
+    },
+    onUpdateProgress: (cb: (info: { percent: number }) => void) => {
+      ipcRenderer.on('app:updateProgress', (_e, info) => cb(info))
+    },
+    onUpdateReady: (cb: () => void) => {
+      ipcRenderer.on('app:updateReady', () => cb())
+    },
+    downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
+    installUpdate: () => ipcRenderer.invoke('app:installUpdate')
   }
 }
 

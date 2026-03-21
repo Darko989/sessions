@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeTheme, dialog, ipcMain, net } from 'electron'
+import { app, BrowserWindow, nativeTheme, ipcMain, net } from 'electron'
 
 // Required on Linux when running without a properly configured SUID sandbox
 if (process.platform === 'linux') {
@@ -7,6 +7,12 @@ if (process.platform === 'linux') {
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
+
+// Auto-update works on Windows (NSIS) and Linux AppImage (no code signing needed).
+// macOS requires code signing ($99/yr Apple Developer Program) — fallback to GitHub.
+// Linux .deb/.rpm can't be auto-updated by electron-updater — fallback to GitHub.
+const isAppImage = !!process.env.APPIMAGE
+const canAutoUpdate = process.platform === 'win32' || isAppImage
 import { GitService } from './services/GitService'
 import { RepoManager } from './services/RepoManager'
 import { SessionManager } from './services/SessionManager'
@@ -92,7 +98,7 @@ function checkForUpdate(mainWindow: BrowserWindow): void {
         const latestVersion: string = (data.tag_name ?? '').replace(/^v/, '')
         const releaseUrl: string = data.html_url ?? 'https://github.com/Darko989/sessions/releases/latest'
         if (latestVersion && latestVersion !== currentVersion) {
-          mainWindow.webContents.send('app:updateAvailable', { latestVersion, releaseUrl })
+          mainWindow.webContents.send('app:updateAvailable', { latestVersion, releaseUrl, canAutoUpdate })
         }
       } catch { /* ignore parse errors */ }
     })
@@ -103,32 +109,47 @@ function checkForUpdate(mainWindow: BrowserWindow): void {
 
 ipcMain.handle('app:dismissUpdate', () => { /* no-op, state handled in renderer */ })
 
-// ── Auto-update (production only, Windows + Linux) ───────────────────────────
-if (!is.dev) {
-  if (process.platform !== 'darwin') {
-    autoUpdater.checkForUpdatesAndNotify()
-    autoUpdater.on('update-downloaded', () => {
-      dialog
-        .showMessageBox({
-          type: 'info',
-          title: 'Update ready',
-          message: 'A new version of Branchless has been downloaded.',
-          detail: 'Restart now to apply the update.',
-          buttons: ['Restart', 'Later'],
-          defaultId: 0
-        })
-        .then(({ response }) => {
-          if (response === 0) autoUpdater.quitAndInstall()
-        })
-    })
-  }
+// ── Auto-update for Windows + Linux AppImage ─────────────────────────────────
+if (!is.dev && canAutoUpdate) {
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = true
 
+  autoUpdater.on('download-progress', (progress) => {
+    const [mainWindow] = BrowserWindow.getAllWindows()
+    if (mainWindow) {
+      mainWindow.webContents.send('app:updateProgress', { percent: Math.round(progress.percent) })
+    }
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    const [mainWindow] = BrowserWindow.getAllWindows()
+    if (mainWindow) {
+      mainWindow.webContents.send('app:updateReady')
+    }
+  })
+
+  ipcMain.handle('app:downloadUpdate', async () => {
+    await autoUpdater.downloadUpdate()
+  })
+
+  ipcMain.handle('app:installUpdate', () => {
+    autoUpdater.quitAndInstall()
+  })
+}
+
+// ── Update check (production only) ───────────────────────────────────────────
+if (!is.dev) {
   app.whenReady().then(() => {
     const [mainWindow] = BrowserWindow.getAllWindows()
     if (mainWindow) {
-      // Check immediately and then every 4 hours
-      setTimeout(() => checkForUpdate(mainWindow), 5000)
-      setInterval(() => checkForUpdate(mainWindow), 4 * 60 * 60 * 1000)
+      const doCheck = () => {
+        // GitHub API check for all platforms (shows banner)
+        checkForUpdate(mainWindow)
+        // electron-updater check for auto-update platforms
+        if (canAutoUpdate) autoUpdater.checkForUpdates().catch(() => {})
+      }
+      setTimeout(doCheck, 5000)
+      setInterval(doCheck, 4 * 60 * 60 * 1000)
     }
   })
 }
