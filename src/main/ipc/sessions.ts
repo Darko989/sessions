@@ -46,10 +46,17 @@ function openTerminal(cwd: string): Promise<void> {
 
 function openVSCode(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('code', [cwd], { detached: true, stdio: 'ignore' })
-    proc.on('error', reject)
-    proc.unref()
-    setTimeout(resolve, 300)
+    const candidates = process.platform === 'darwin'
+      ? ['code', '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code']
+      : ['code']
+    const tryNext = (i: number) => {
+      if (i >= candidates.length) { reject(new Error('VS Code not found. Install the "code" shell command from VS Code (Command Palette → "Shell Command: Install").')); return }
+      const proc = spawn(candidates[i], [cwd], { detached: true, stdio: 'ignore' })
+      proc.on('error', () => tryNext(i + 1))
+      proc.unref()
+      setTimeout(resolve, 300)
+    }
+    tryNext(0)
   })
 }
 
@@ -90,20 +97,40 @@ function openClaude(cwd: string): Promise<void> {
 
 function openCursor(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn('cursor', [cwd], { detached: true, stdio: 'ignore' })
-    proc.on('error', reject)
-    proc.unref()
-    setTimeout(resolve, 300)
+    const candidates = process.platform === 'darwin'
+      ? ['cursor', '/Applications/Cursor.app/Contents/Resources/app/bin/cursor']
+      : ['cursor']
+    const tryNext = (i: number) => {
+      if (i >= candidates.length) { reject(new Error('Cursor not found. Install the "cursor" shell command from Cursor (Command Palette → "Shell Command: Install").')); return }
+      const proc = spawn(candidates[i], [cwd], { detached: true, stdio: 'ignore' })
+      proc.on('error', () => tryNext(i + 1))
+      proc.unref()
+      setTimeout(resolve, 300)
+    }
+    tryNext(0)
   })
 }
 
 function openIntelliJ(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    // IntelliJ IDEA CLI: 'idea' on all platforms
-    const proc = spawn('idea', [cwd], { detached: true, stdio: 'ignore' })
-    proc.on('error', reject)
-    proc.unref()
-    setTimeout(resolve, 300)
+    const candidates = process.platform === 'darwin'
+      ? [
+          'idea',
+          '/Applications/IntelliJ IDEA.app/Contents/MacOS/idea',
+          '/Applications/IntelliJ IDEA CE.app/Contents/MacOS/idea',
+          '/Applications/IntelliJ IDEA Ultimate.app/Contents/MacOS/idea'
+        ]
+      : process.platform === 'win32'
+        ? ['idea', 'idea64']
+        : ['idea']
+    const tryNext = (i: number) => {
+      if (i >= candidates.length) { reject(new Error('IntelliJ IDEA not found. Install the "idea" command-line launcher from IntelliJ (Tools → Create Command-line Launcher).')); return }
+      const proc = spawn(candidates[i], [cwd], { detached: true, stdio: 'ignore' })
+      proc.on('error', () => tryNext(i + 1))
+      proc.unref()
+      setTimeout(resolve, 300)
+    }
+    tryNext(0)
   })
 }
 
