@@ -1171,6 +1171,7 @@ export const Sidebar: React.FC = () => {
       setSelectedSession(session.id)
       setSelectedTicket(null)
       setBranchEdited(false)
+      setBranchName(makeBranchName(null, baseBranch))
     } catch (err) {
       setCreateError(String(err).replace(/^Error:\s*/, '').slice(0, 140))
       setTimeout(() => setCreateError(''), 8000)

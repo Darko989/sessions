@@ -35,7 +35,8 @@ const api = {
     getDiffStats: invoke('sessions:getDiffStats'),
     getFileDiffVsBase: invoke('sessions:getFileDiffVsBase'),
     runHealthChecks: invoke('sessions:runHealthChecks'),
-    analyzeCodebase: invoke('sessions:analyzeCodebase')
+    analyzeCodebase: invoke('sessions:analyzeCodebase'),
+    getConflictRisk: invoke('sessions:getConflictRisk')
   },
   repos: {
     getAll: invoke('repos:getAll'),

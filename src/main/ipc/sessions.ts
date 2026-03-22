@@ -319,4 +319,10 @@ export function registerSessionIpc(
     if (!session) throw new Error('Session not found')
     return gitService.analyzeCodebase(session.worktreePath, session.baseBranch)
   })
+
+  ipcMain.handle('sessions:getConflictRisk', async (_e, sessionId: string) => {
+    const session = sessionManager.getById(sessionId)
+    if (!session) throw new Error('Session not found')
+    return gitService.getConflictRisk(session.worktreePath, session.baseBranch)
+  })
 }

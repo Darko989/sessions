@@ -19,6 +19,10 @@ files:
 npmRebuild: false
 afterPack: build/afterPack.js
 
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+
 # ── macOS ─────────────────────────────────────────────────────────────────────
 mac:
   category: public.app-category.developer-tools

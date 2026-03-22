@@ -1,10 +1,12 @@
 import { ipcMain } from 'electron'
 import { RepoManager } from '../services/RepoManager'
+import { SessionManager } from '../services/SessionManager'
 import { GitService } from '../services/GitService'
 import { ActivityLog } from '../services/ActivityLog'
 
 export function registerRepoIpc(
   repoManager: RepoManager,
+  sessionManager: SessionManager,
   gitService: GitService,
   activityLog: ActivityLog
 ): void {
@@ -16,11 +18,20 @@ export function registerRepoIpc(
     return repo
   })
 
-  ipcMain.handle('repos:remove', (_e, id: string) => {
+  ipcMain.handle('repos:remove', async (_e, id: string) => {
     const repo = repoManager.getById(id)
+    // Delete all sessions for this repo (active + archived)
+    const sessions = sessionManager.getAll().filter(s => s.repoId === id)
+    for (const session of sessions) {
+      try {
+        await sessionManager.delete(session.id)
+      } catch (err) {
+        console.warn(`Failed to delete session "${session.name}":`, err)
+      }
+    }
     repoManager.remove(id)
     if (repo) {
-      activityLog.add('repo_removed', `Removed repository "${repo.name}"`, { repoId: id })
+      activityLog.add('repo_removed', `Removed repository "${repo.name}" and ${sessions.length} session(s)`, { repoId: id })
     }
   })
 

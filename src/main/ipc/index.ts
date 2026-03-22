@@ -21,7 +21,7 @@ export function registerAllIpc(services: {
   const { sessionManager, repoManager, gitService, settingsStore, activityLog, ticketService } = services
 
   registerSessionIpc(sessionManager, gitService, activityLog)
-  registerRepoIpc(repoManager, gitService, activityLog)
+  registerRepoIpc(repoManager, sessionManager, gitService, activityLog)
   registerSettingsIpc(settingsStore)
   registerTicketIpc(ticketService)
 

@@ -25,6 +25,9 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0f172a',
+    icon: is.dev
+      ? join(__dirname, '../../resources/icon.png')
+      : join(process.resourcesPath, 'icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import ReactDiffViewer, { DiffMethod } from 'react-diff-viewer-continued'
 import { Session, GitStatus, ActivityEntry } from '../../types'
 import { useAppStore } from '../../store/appStore'
 import iconVSCode from '../../assets/icons/vscode.png'
@@ -143,7 +144,7 @@ function splitDiffByFile(diff: string): Record<string, string> {
   return result
 }
 
-// ── Diff Compare tab ─────────────────────────────────────────────────────────
+// ── Preview Changes tab ───────────────────────────────────────────────────────
 
 interface DiffFileStat {
   file: string
@@ -152,11 +153,85 @@ interface DiffFileStat {
   binary: boolean
 }
 
-const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ sessionId, baseBranch }) => {
+/** Parse a unified diff hunk into old/new text */
+function parseDiffToOldNew(unifiedDiff: string): { oldText: string; newText: string } {
+  const oldLines: string[] = []
+  const newLines: string[] = []
+  for (const line of unifiedDiff.split('\n')) {
+    if (line.startsWith('diff --git') || line.startsWith('index ') || line.startsWith('---') || line.startsWith('+++') || line.startsWith('@@')) continue
+    if (line.startsWith('-')) {
+      oldLines.push(line.slice(1))
+    } else if (line.startsWith('+')) {
+      newLines.push(line.slice(1))
+    } else if (line.startsWith(' ') || line === '') {
+      const content = line.startsWith(' ') ? line.slice(1) : line
+      oldLines.push(content)
+      newLines.push(content)
+    }
+  }
+  return { oldText: oldLines.join('\n'), newText: newLines.join('\n') }
+}
+
+const diffViewerStyles = {
+  variables: {
+    dark: {
+      diffViewerBackground: '#1e1e1e',
+      diffViewerColor: '#e2e8f0',
+      addedBackground: '#064e3b20',
+      addedColor: '#6ee7b7',
+      removedBackground: '#7f1d1d20',
+      removedColor: '#fca5a5',
+      wordAddedBackground: '#065f4630',
+      wordRemovedBackground: '#991b1b30',
+      addedGutterBackground: '#064e3b30',
+      removedGutterBackground: '#7f1d1d30',
+      gutterBackground: '#1e1e1e',
+      gutterBackgroundDark: '#1e1e1e',
+      highlightBackground: '#2a2a2a',
+      highlightGutterBackground: '#2a2a2a',
+      codeFoldGutterBackground: '#2a2a2a',
+      codeFoldBackground: '#2a2a2a',
+      emptyLineBackground: '#1e1e1e',
+      gutterColor: '#475569',
+      addedGutterColor: '#6ee7b7',
+      removedGutterColor: '#fca5a5',
+      codeFoldContentColor: '#64748b',
+    },
+    light: {
+      diffViewerBackground: '#ffffff',
+      diffViewerColor: '#1e293b',
+      addedBackground: '#dcfce720',
+      addedColor: '#166534',
+      removedBackground: '#fee2e220',
+      removedColor: '#991b1b',
+      wordAddedBackground: '#bbf7d030',
+      wordRemovedBackground: '#fecaca30',
+      addedGutterBackground: '#dcfce730',
+      removedGutterBackground: '#fee2e230',
+      gutterBackground: '#ffffff',
+      gutterBackgroundDark: '#ffffff',
+      highlightBackground: '#f1f5f9',
+      highlightGutterBackground: '#f1f5f9',
+      codeFoldGutterBackground: '#f1f5f9',
+      codeFoldBackground: '#f1f5f9',
+      emptyLineBackground: '#ffffff',
+      gutterColor: '#94a3b8',
+      addedGutterColor: '#166534',
+      removedGutterColor: '#991b1b',
+      codeFoldContentColor: '#94a3b8',
+    }
+  },
+  line: { padding: '2px 10px', fontSize: '12px', lineHeight: '1.6' },
+  gutter: { padding: '0 8px', fontSize: '11px', minWidth: '35px' },
+  contentText: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', whiteSpace: 'pre' as const },
+}
+
+const PreviewChangesTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ sessionId, baseBranch }) => {
   const [stats, setStats] = useState<DiffFileStat[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedFile, setExpandedFile] = useState<string | null>(null)
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [fileDiffs, setFileDiffs] = useState<Record<string, string>>({})
+  const [splitView, setSplitView] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -173,7 +248,21 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
   }, [sessionId])
 
   const toggleFile = (file: string) => {
-    setExpandedFile(expandedFile === file ? null : file)
+    setExpandedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(file)) next.delete(file)
+      else next.add(file)
+      return next
+    })
+  }
+
+  const allExpanded = stats.length > 0 && expandedFiles.size === stats.length
+  const toggleAll = () => {
+    if (allExpanded) {
+      setExpandedFiles(new Set())
+    } else {
+      setExpandedFiles(new Set(stats.map(s => s.file)))
+    }
   }
 
   const totalAdd = stats.reduce((s, f) => s + f.additions, 0)
@@ -202,7 +291,21 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
           <span className="text-xs font-semibold text-ink">{stats.length} files changed</span>
           <span className="text-xs font-mono text-green-600">+{totalAdd}</span>
           <span className="text-xs font-mono text-red-500">-{totalDel}</span>
-          <span className="ml-auto text-xs text-ink-3">vs <span className="font-mono">{baseBranch}</span></span>
+          <div className="ml-auto flex items-center gap-3">
+            <span className="text-xs text-ink-3">vs <span className="font-mono">{baseBranch}</span></span>
+            <button
+              onClick={toggleAll}
+              className="text-[11px] font-medium px-2 py-0.5 rounded border text-ink-3 border-panel-border hover:text-ink transition-colors"
+            >
+              {allExpanded ? 'Collapse All' : 'Expand All'}
+            </button>
+            <button
+              onClick={() => setSplitView(!splitView)}
+              className={`text-[11px] font-medium px-2 py-0.5 rounded border transition-colors ${splitView ? 'bg-accent/10 text-accent border-accent/30' : 'text-ink-3 border-panel-border hover:text-ink'}`}
+            >
+              {splitView ? 'Split' : 'Unified'}
+            </button>
+          </div>
         </div>
         <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-panel-bg">
           {totalAdd + totalDel > 0 && (
@@ -218,6 +321,7 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
       <div className="rounded-xl border border-panel-border bg-panel-card overflow-hidden">
         <div className="divide-y divide-panel-border">
           {stats.map(({ file, additions, deletions, binary }) => {
+            const isExpanded = expandedFiles.has(file)
             const diffKey = file in fileDiffs
               ? file
               : Object.keys(fileDiffs).find((k) => k.endsWith(file) || file.endsWith(k)) || file
@@ -227,8 +331,14 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
               <div key={file}>
                 <button
                   onClick={() => toggleFile(file)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-panel-hover text-left transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-panel-hover text-left transition-colors sticky top-0 z-10 bg-panel-card"
                 >
+                  <svg
+                    className={`w-3 h-3 text-ink-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
                   <span className="text-xs font-mono text-ink flex-1 truncate">{file}</span>
                   {binary ? (
                     <span className="text-xs text-ink-3">binary</span>
@@ -238,30 +348,9 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
                       {deletions > 0 && <span className="text-xs font-mono text-red-500">-{deletions}</span>}
                     </div>
                   )}
-                  <svg
-                    className={`w-3.5 h-3.5 text-ink-3 flex-shrink-0 transition-transform ${expandedFile === file ? 'rotate-180' : ''}`}
-                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
                 </button>
-                {expandedFile === file && (
-                  <div className="border-t border-panel-border bg-gray-950 overflow-x-auto">
-                    {diff ? (
-                      <pre className="text-xs font-mono p-4 leading-relaxed whitespace-pre">
-                        {diff.split('\n').map((line, i) => (
-                          <div key={i} className={
-                            line.startsWith('+') && !line.startsWith('+++') ? 'text-green-400' :
-                            line.startsWith('-') && !line.startsWith('---') ? 'text-red-400' :
-                            line.startsWith('@@') ? 'text-blue-400' :
-                            'text-gray-400'
-                          }>{line || ' '}</div>
-                        ))}
-                      </pre>
-                    ) : (
-                      <div className="text-xs text-gray-500 p-4">No diff content available</div>
-                    )}
-                  </div>
+                {isExpanded && (
+                  <FileDiffView diff={diff} splitView={splitView} />
                 )}
               </div>
             )
@@ -272,380 +361,103 @@ const DiffCompareTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ s
   )
 }
 
-// ── PR Risk Review tab ───────────────────────────────────────────────────────
+const FileDiffView: React.FC<{ diff: string; splitView: boolean }> = ({ diff, splitView }) => {
+  const { oldText, newText } = useMemo(() => diff ? parseDiffToOldNew(diff) : { oldText: '', newText: '' }, [diff])
 
-type FindingSeverity = 'must_fix' | 'nice_to_fix' | 'nitpick'
+  if (!diff) return <div className="border-t border-panel-border bg-gray-950 p-4 text-xs text-gray-500">No diff content available</div>
 
-interface ReviewFinding {
-  severity: FindingSeverity
-  file: string
-  detail: string
-  recommendation: string
-}
-
-interface RiskAssessment {
-  level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
-  findings: ReviewFinding[]
-  summary: string
-}
-
-interface FileCodeReview {
-  file: string
-  additions: number
-  deletions: number
-  findings: ReviewFinding[]
-}
-
-const RISK_COLORS: Record<string, { text: string; bg: string; border: string; dot: string }> = {
-  LOW:      { text: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200',  dot: 'bg-green-500' },
-  MEDIUM:   { text: 'text-amber-700',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500' },
-  HIGH:     { text: 'text-red-600',    bg: 'bg-red-50',    border: 'border-red-200',    dot: 'bg-red-500' },
-  CRITICAL: { text: 'text-red-700',    bg: 'bg-red-100',   border: 'border-red-300',    dot: 'bg-red-700' },
-}
-
-const SEVERITY_STYLE: Record<FindingSeverity, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  must_fix:    { label: 'Must Fix',    color: 'text-red-700',   bg: 'bg-red-50',   border: 'border-red-200',   dot: 'bg-red-500' },
-  nice_to_fix: { label: 'Nice to Fix', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', dot: 'bg-amber-500' },
-  nitpick:     { label: 'Nitpick',     color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', dot: 'bg-slate-400' },
-}
-
-function getAddedLines(fileDiff: string): string[] {
-  return fileDiff.split('\n').filter((l) => l.startsWith('+') && !l.startsWith('+++'))
-}
-
-/** Analyze a single file's diff and produce review findings */
-function analyzeFile(file: string, fileDiff: string, stat: DiffFileStat): ReviewFinding[] {
-  const findings: ReviewFinding[] = []
-  const addedLines = getAddedLines(fileDiff)
-  const addedText = addedLines.join('\n')
-  const totalLines = stat.additions + stat.deletions
-  const isSource = /\.(ts|tsx|js|jsx|py|rb|go|rs|java|kt|swift|c|cpp|cs|php)$/.test(file)
-
-  // Correctness
-  if (isSource) {
-    const syntaxIssues: string[] = []
-    for (const rawLine of addedLines) {
-      const trimmed = rawLine.slice(1).trim()
-      if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('#')) continue
-      for (const q of ["'", '"']) {
-        const matches = trimmed.match(new RegExp(`(?<!\\\\)${q === "'" ? "'" : '"'}`, 'g'))
-        if (matches && matches.length % 2 !== 0 && !trimmed.includes('`')) {
-          syntaxIssues.push(trimmed.slice(0, 80))
-          break
-        }
-      }
-      const opens = (trimmed.match(/[({[]/g) || []).length
-      const closes = (trimmed.match(/[)}\]]/g) || []).length
-      if (opens > 0 && closes > opens + 2) syntaxIssues.push(trimmed.slice(0, 80))
-      if (trimmed.length > 10 && !/[=(){}[\];:'"`,.<>+\-*\/|&!?@#$%^~]/.test(trimmed) && !/^(import|export|const|let|var|function|class|if|else|return|from|type|interface|enum|for|while|switch|case|break|continue|throw|try|catch|finally|async|await|default|new|delete|typeof|void|in|of|do|with|yield|def|end|fn|pub|mod|use|impl|struct|trait|match|loop)\b/.test(trimmed)) {
-        syntaxIssues.push(`Suspicious non-code text: ${trimmed.slice(0, 60)}`)
-      }
-    }
-    if (syntaxIssues.length > 0) {
-      findings.push({ severity: 'must_fix', file, detail: `${syntaxIssues.length} syntax issue${syntaxIssues.length > 1 ? 's' : ''} detected. ${syntaxIssues.slice(0, 3).map(s => `"${s}"`).join(', ')}`, recommendation: 'Fix syntax errors before merging. These will likely cause build failures or runtime crashes.' })
-    }
-  }
-
-  // Corrupted code
-  if (isSource) {
-    const removedLines = fileDiff.split('\n').filter((l) => l.startsWith('-') && !l.startsWith('---'))
-    const removedCode = removedLines.map((l) => l.slice(1).trim()).filter((l) => l.length > 5)
-    const addedCode = addedLines.map((l) => l.slice(1).trim()).filter((l) => l.length > 5)
-    if (removedCode.length > 0 && addedCode.length > 0) {
-      const broken = addedCode.filter((line) => {
-        const semiCount = (line.match(/;/g) || []).length
-        if (semiCount >= 3 && !line.includes('for')) return true
-        if (/[a-z]{5,};[a-z]{3,}/i.test(line)) return true
-        return false
-      })
-      if (broken.length > 0) {
-        findings.push({ severity: 'must_fix', file, detail: `${broken.length} line${broken.length > 1 ? 's look' : ' looks'} like corrupted code. Example: "${broken[0].slice(0, 80)}"`, recommendation: 'Revert these changes and re-apply the intended modifications.' })
-      }
-    }
-  }
-
-  // Brace balance
-  if (isSource) {
-    let bal = 0
-    for (const rawLine of addedLines) { const ns = rawLine.slice(1).replace(/'[^']*'|"[^"]*"|`[^`]*`/g, ''); bal += (ns.match(/{/g) || []).length; bal -= (ns.match(/}/g) || []).length }
-    if (bal < -2 || bal > 3) findings.push({ severity: 'nice_to_fix', file, detail: `Unbalanced braces in added code (${bal > 0 ? '+' : ''}${bal}).`, recommendation: 'Verify brace matching in full file context.' })
-  }
-
-  // Empty catch
-  if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(addedText) || /catch\s*\{\s*\}/.test(addedText))
-    findings.push({ severity: 'must_fix', file, detail: 'Empty catch block silently swallows errors.', recommendation: 'Add error handling, logging, or re-throw.' })
-
-  // Non-null assertions
-  const nnc = (addedText.match(/\w+!\./g) || []).length
-  if (nnc >= 3) findings.push({ severity: 'nice_to_fix', file, detail: `${nnc} non-null assertions (!) bypass TypeScript safety.`, recommendation: 'Add proper null checks or use optional chaining.' })
-
-  // as any
-  const aac = (addedText.match(/as\s+any/g) || []).length
-  if (aac > 0) findings.push({ severity: aac >= 3 ? 'must_fix' : 'nice_to_fix', file, detail: `${aac} \`as any\` cast${aac > 1 ? 's' : ''} disable type checking.`, recommendation: 'Use proper types or \`unknown\` with type guards.' })
-
-  // Console statements
-  const cm = addedText.match(/console\.(log|debug|warn|error|info)\(/g)
-  if (cm && cm.length > 0) findings.push({ severity: 'nice_to_fix', file, detail: `${cm.length} console statement${cm.length > 1 ? 's' : ''} left in code.`, recommendation: 'Remove debug logging before merging.' })
-
-  // TODO/FIXME
-  const dm = addedText.match(/\b(TODO|FIXME|HACK|XXX)\b/g)
-  if (dm && dm.length > 0) findings.push({ severity: 'nitpick', file, detail: `${dm.length} tech debt marker${dm.length > 1 ? 's' : ''}: ${[...new Set(dm)].join(', ')}.`, recommendation: 'Address now or create a follow-up ticket.' })
-
-  // Suppressions
-  const sp = addedText.match(/(eslint-disable|@ts-ignore|@ts-expect-error|noqa|noinspection)/g)
-  if (sp && sp.length > 0) findings.push({ severity: 'nice_to_fix', file, detail: `${sp.length} lint/type suppression${sp.length > 1 ? 's' : ''}.`, recommendation: 'Fix the underlying issue instead of suppressing.' })
-
-  // Large change
-  if (totalLines > 300 && isSource) findings.push({ severity: 'nice_to_fix', file, detail: `Large change: +${stat.additions} / -${stat.deletions} lines.`, recommendation: 'Consider splitting into smaller changes.' })
-
-  // Deep nesting
-  const dn = addedLines.filter((l) => /^\+(\s{12,}|\t{3,})\S/.test(l))
-  if (dn.length >= 5) findings.push({ severity: 'nitpick', file, detail: 'Deeply nested code (3+ levels).', recommendation: 'Use early returns or extract helper functions.' })
-
-  // Duplication
-  const cl = addedLines.map((l) => l.slice(1).trim()).filter((l) => l.length > 10)
-  const sb = new Map<string, number>()
-  for (let i = 0; i < cl.length - 2; i++) { const b = cl.slice(i, i + 3).join('|'); sb.set(b, (sb.get(b) || 0) + 1) }
-  const db = [...sb.entries()].filter(([, c]) => c >= 2)
-  if (db.length > 0) findings.push({ severity: 'nice_to_fix', file, detail: `${db.length} repeated code block${db.length > 1 ? 's' : ''} in this file.`, recommendation: 'Extract into a shared helper or loop.' })
-
-  // Await in loop
-  if (/for\s*\(|\.forEach\(|\.map\(|while\s*\(/.test(addedText) && /await\s/.test(addedText)) {
-    const la = addedLines.some((l, i) => { if (!/await\s/.test(l)) return false; for (let j = Math.max(0, i - 10); j < i; j++) { if (/for\s*\(|\.forEach\(|\.map\(|while\s*\(/.test(addedLines[j])) return true } return false })
-    if (la) findings.push({ severity: 'must_fix', file, detail: 'Await inside loop — potential N+1 performance issue.', recommendation: 'Use Promise.all() or batch operations.' })
-  }
-
-  // Security: XSS
-  if (/eval\(|new Function\(|innerHTML\s*=|dangerouslySetInnerHTML|v-html/.test(addedText))
-    findings.push({ severity: 'must_fix', file, detail: 'Potential XSS / code injection detected.', recommendation: 'Use safe alternatives like textContent or sanitize input.' })
-
-  // Security: SQL injection
-  if (/(?:SELECT|INSERT|UPDATE|DELETE)\s+.*(?:FROM|INTO|SET)\s/i.test(addedText) && !/\$\d|\?\s|%s/.test(addedText))
-    findings.push({ severity: 'must_fix', file, detail: 'Potential SQL injection — inline SQL without parameterized placeholders.', recommendation: 'Use prepared statements or an ORM.' })
-
-  // Security: hardcoded secrets
-  if (/(?:password|secret|api_?key|token|private_?key)\s*[:=]\s*['"][^'"]{4,}['"]/i.test(addedText))
-    findings.push({ severity: 'must_fix', file, detail: 'Possible hardcoded secret in source code.', recommendation: 'Move to environment variables or a secrets manager.' })
-
-  // Security: sensitive files
-  if (/\.env$|\.pem$|\.key$|credentials/i.test(file) && !/\.example|\.sample|\.template/i.test(file))
-    findings.push({ severity: 'must_fix', file, detail: 'Security-sensitive file modified.', recommendation: 'Verify no sensitive values are being committed.' })
-
-  // Security: CORS wildcard
-  if (/Access-Control-Allow-Origin.*\*|cors\(\s*\)/.test(addedText))
-    findings.push({ severity: 'nice_to_fix', file, detail: 'Open CORS policy (wildcard origin).', recommendation: 'Restrict to specific allowed domains.' })
-
-  return findings
-}
-
-/** Build risk assessment from file reviews and stats */
-function buildRiskAssessment(stats: DiffFileStat[], fileReviews: FileCodeReview[]): RiskAssessment {
-  const allFindings: ReviewFinding[] = []
-  const totalChanges = stats.reduce((s, f) => s + f.additions + f.deletions, 0)
-  const fileCount = stats.length
-  const sourceFiles = stats.filter((f) => /\.(ts|tsx|js|jsx|py|rb|go|rs|java|kt|swift|c|cpp|cs|php)$/.test(f.file))
-  const testFiles = stats.filter((f) => /test|spec|__tests__|_test\./i.test(f.file))
-
-  if (totalChanges > 1000) allFindings.push({ severity: 'must_fix', file: `${fileCount} files`, detail: `Very large PR: ${totalChanges} lines across ${fileCount} files.`, recommendation: 'Split into smaller, incremental PRs.' })
-  else if (totalChanges > 500) allFindings.push({ severity: 'nice_to_fix', file: `${fileCount} files`, detail: `Moderately large PR: ${totalChanges} lines.`, recommendation: 'Split unrelated changes into separate PRs.' })
-
-  const depFiles = stats.filter((f) => /package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Gemfile\.lock|Cargo\.lock|go\.sum|poetry\.lock/i.test(f.file))
-  if (depFiles.length > 0) allFindings.push({ severity: 'must_fix', file: depFiles.map((f) => f.file).join(', '), detail: 'Dependency lockfile changed.', recommendation: 'Run npm audit or equivalent. Review new packages.' })
-
-  const migFiles = stats.filter((f) => /migrat/i.test(f.file) || /\d{4,}.*\.(sql|ts|js)/.test(f.file.split('/').pop() || ''))
-  if (migFiles.length > 0) allFindings.push({ severity: 'must_fix', file: migFiles.map((f) => f.file).join(', '), detail: 'Database migration detected.', recommendation: 'Ensure migrations are reversible and tested against production-like data.' })
-
-  const ciFiles = stats.filter((f) => /\.github\/workflows|\.gitlab-ci|Jenkinsfile|Dockerfile|docker-compose|\.circleci|\.travis/i.test(f.file))
-  if (ciFiles.length > 0) allFindings.push({ severity: 'nice_to_fix', file: ciFiles.map((f) => f.file).join(', '), detail: 'CI/CD or infrastructure config changed.', recommendation: 'Test in staging before merging.' })
-
-  const deleted = stats.filter((f) => f.additions === 0 && f.deletions > 0 && !f.binary)
-  if (deleted.length > 3) allFindings.push({ severity: 'nice_to_fix', file: deleted.slice(0, 3).map((f) => f.file).join(', '), detail: `${deleted.length} files deleted.`, recommendation: 'Verify no breaking imports remain.' })
-
-  if (sourceFiles.length > 2 && testFiles.length === 0) allFindings.push({ severity: 'nice_to_fix', file: `${sourceFiles.length} source files`, detail: 'No test changes detected.', recommendation: 'Add test coverage for new behavior.' })
-
-  const fileMustFix = fileReviews.flatMap((r) => r.findings.filter((f) => f.severity === 'must_fix'))
-  allFindings.push(...fileMustFix)
-
-  const mustFixCount = allFindings.filter((f) => f.severity === 'must_fix').length
-  const niceCount = fileReviews.flatMap((r) => r.findings).filter((f) => f.severity === 'nice_to_fix').length
-
-  let level: RiskAssessment['level']
-  if (mustFixCount >= 3 || (mustFixCount > 0 && totalChanges > 500)) level = 'HIGH'
-  else if (mustFixCount > 0 || niceCount >= 5) level = 'MEDIUM'
-  else level = 'LOW'
-
-  const parts: string[] = []
-  parts.push(`This PR modifies ${fileCount} file${fileCount !== 1 ? 's' : ''} with ${totalChanges} total line changes (+${stats.reduce((s, f) => s + f.additions, 0)} / -${stats.reduce((s, f) => s + f.deletions, 0)}).`)
-  if (mustFixCount > 0) parts.push(`Found ${mustFixCount} issue${mustFixCount !== 1 ? 's' : ''} to address before merging.`)
-  if (niceCount > 0) parts.push(`${niceCount} suggestion${niceCount !== 1 ? 's' : ''} for improvement.`)
-  if (allFindings.length === 0) parts.push('No significant issues detected. Code looks good to merge.')
-
-  return { level, findings: allFindings, summary: parts.join(' ') }
-}
-
-/** Finding card */
-const FindingCard: React.FC<{ finding: ReviewFinding; showFile?: boolean }> = ({ finding, showFile = true }) => {
-  const sc = SEVERITY_STYLE[finding.severity]
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-start gap-2.5">
-        <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${sc.dot}`} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={`text-xs px-1.5 py-0.5 rounded ${sc.bg} ${sc.color} font-semibold`}>{sc.label}</span>
-            {showFile && <span className="text-xs font-mono text-ink-3">{finding.file}</span>}
-          </div>
-          <p className="text-xs text-ink leading-relaxed">{finding.detail}</p>
-          <p className="text-xs text-ink-2 mt-1.5 leading-relaxed italic">{finding.recommendation}</p>
-        </div>
+    <div
+      className="border-t border-panel-border overflow-auto max-h-[500px]"
+      style={{ backgroundColor: 'var(--color-panel-card)' }}
+    >
+      <div style={{ minWidth: 'fit-content' }}>
+        <ReactDiffViewer
+          oldValue={oldText}
+          newValue={newText}
+          splitView={splitView}
+          useDarkTheme={true}
+          compareMethod={DiffMethod.WORDS}
+          styles={diffViewerStyles}
+          hideLineNumbers={false}
+        />
       </div>
     </div>
   )
 }
 
-const PRRiskReviewTab: React.FC<{ sessionId: string; baseBranch: string }> = ({ sessionId }) => {
-  const [fileReviews, setFileReviews] = useState<FileCodeReview[]>([])
-  const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null)
+// ── Conflict Risk tab ─────────────────────────────────────────────────────────
+
+interface ConflictRiskFile {
+  file: string
+  mainCommits: number
+  authors: string[]
+}
+
+const ConflictRiskTab: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+  const [risks, setRisks] = useState<ConflictRiskFile[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
-  const [activeSection, setActiveSection] = useState<'risk' | 'review'>('risk')
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([
-      window.api.sessions.getDiffCompare(sessionId) as Promise<string>,
-      window.api.sessions.getDiffStats(sessionId) as Promise<DiffFileStat[]>,
-      window.api.sessions.analyzeCodebase(sessionId) as Promise<{ findings: ReviewFinding[] }>
-    ]).then(([diff, st, codebaseAnalysis]) => {
-      const fileDiffs = splitDiffByFile(diff)
-      const cbFindings = codebaseAnalysis?.findings || []
-      const cbByFile = new Map<string, ReviewFinding[]>()
-      for (const f of cbFindings) { const e = cbByFile.get(f.file) || []; e.push(f); cbByFile.set(f.file, e) }
-
-      const reviews: FileCodeReview[] = st.filter((s) => !s.binary).map((s) => {
-        const fd = fileDiffs[s.file] || fileDiffs[Object.keys(fileDiffs).find((k) => k.endsWith(s.file) || s.file.endsWith(k)) || ''] || ''
-        const diffFindings = fd ? analyzeFile(s.file, fd, s) : []
-        const codebaseFindings = cbByFile.get(s.file) || []
-        return { file: s.file, additions: s.additions, deletions: s.deletions, findings: [...diffFindings, ...codebaseFindings] }
-      }).sort((a, b) => b.findings.length - a.findings.length)
-
-      const statsFiles = new Set(st.map((s) => s.file))
-      const orphanedFindings = cbFindings.filter((f) => !statsFiles.has(f.file))
-
-      setFileReviews(reviews)
-      const assessment = buildRiskAssessment(st, reviews)
-      assessment.findings.push(...orphanedFindings)
-      setRiskAssessment(assessment)
-      setExpandedFiles(new Set(reviews.filter((r) => r.findings.some((f) => f.severity === 'must_fix')).map((r) => r.file)))
-    }).catch(() => { setFileReviews([]); setRiskAssessment(null) }).finally(() => setLoading(false))
+    ;(window.api.sessions.getConflictRisk(sessionId) as Promise<ConflictRiskFile[]>)
+      .then(setRisks)
+      .catch(() => setRisks([]))
+      .finally(() => setLoading(false))
   }, [sessionId])
-
-  const toggleFile = (file: string) => {
-    setExpandedFiles((prev) => { const next = new Set(prev); if (next.has(file)) next.delete(file); else next.add(file); return next })
-  }
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-12 gap-3">
       <svg className="animate-spin w-5 h-5 text-ink-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-      <span className="text-xs text-ink-3">Analyzing changes...</span>
+      <span className="text-xs text-ink-3">Checking for conflicts...</span>
     </div>
   )
 
-  if (!riskAssessment) return <div className="text-center py-12 text-xs text-ink-3">Unable to analyze changes</div>
-
-  const rc = RISK_COLORS[riskAssessment.level]
-  const allCodeFindings = fileReviews.flatMap((r) => r.findings)
-  const mustFixCount = allCodeFindings.filter((f) => f.severity === 'must_fix').length
-  const niceCount = allCodeFindings.filter((f) => f.severity === 'nice_to_fix').length
-  const nitpickCount = allCodeFindings.filter((f) => f.severity === 'nitpick').length
-  const filesWithFindings = fileReviews.filter((r) => r.findings.length > 0).length
+  if (risks.length === 0) return (
+    <div className="text-center py-12">
+      <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center mx-auto mb-3">
+        <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+      </div>
+      <p className="text-xs text-ink-3 font-medium">No conflict risk detected</p>
+      <p className="text-[11px] text-ink-3 mt-1">None of your changed files were modified in main recently</p>
+    </div>
+  )
 
   return (
     <div className="space-y-4">
-      {/* Section toggle */}
-      <div className="flex rounded-lg border border-panel-border overflow-hidden">
-        <button onClick={() => setActiveSection('risk')} className={`flex-1 px-4 py-2 text-xs font-semibold transition-colors ${activeSection === 'risk' ? 'bg-accent text-white' : 'bg-panel-card text-ink-3 hover:bg-panel-hover'}`}>Risk Assessment</button>
-        <button onClick={() => setActiveSection('review')} className={`flex-1 px-4 py-2 text-xs font-semibold transition-colors ${activeSection === 'review' ? 'bg-accent text-white' : 'bg-panel-card text-ink-3 hover:bg-panel-hover'}`}>Code Review</button>
+      <div className={`rounded-xl border-2 p-4 ${risks.length >= 3 ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <svg className={`w-4 h-4 ${risks.length >= 3 ? 'text-red-500' : 'text-amber-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.27 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+          <span className={`text-sm font-bold ${risks.length >= 3 ? 'text-red-700' : 'text-amber-700'}`}>
+            {risks.length} file{risks.length !== 1 ? 's' : ''} likely to conflict
+          </span>
+        </div>
+        <p className={`text-xs ${risks.length >= 3 ? 'text-red-600' : 'text-amber-600'}`}>
+          These files were recently changed in main and may conflict when you merge.
+        </p>
       </div>
 
-      {activeSection === 'risk' && (
-        <div className="space-y-4">
-          <div className={`rounded-xl border-2 ${rc.border} ${rc.bg} p-5`}>
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`w-3 h-3 rounded-full ${rc.dot}`} />
-              <span className={`text-lg font-bold ${rc.text}`}>Risk Assessment: {riskAssessment.level}</span>
-            </div>
-            <p className="text-sm text-ink leading-relaxed">{riskAssessment.summary}</p>
-          </div>
-
-          {riskAssessment.findings.length > 0 && (
-            <div className="rounded-xl border border-panel-border bg-panel-card overflow-hidden">
-              <div className="px-4 py-3 border-b border-panel-border bg-panel-bg">
-                <span className="text-xs font-semibold tracking-widest text-ink-3 uppercase">Findings ({riskAssessment.findings.length})</span>
-              </div>
-              <div className="divide-y divide-panel-border">
-                {riskAssessment.findings.map((finding, i) => <FindingCard key={i} finding={finding} />)}
-              </div>
-            </div>
-          )}
-
+      <div className="rounded-xl border border-panel-border bg-panel-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-panel-border bg-panel-bg">
+          <span className="text-xs font-semibold tracking-widest text-ink-3 uppercase">At-risk files</span>
         </div>
-      )}
-
-      {activeSection === 'review' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-panel-border bg-panel-card p-4">
-            <div className="text-xs font-semibold tracking-widest text-ink-3 uppercase mb-3">Code Review Summary</div>
-            <div className="text-xs text-ink-2 mb-3">Reviewed {fileReviews.length} files. Checks: correctness, code quality, patterns, duplication, performance, security.</div>
-            <div className="flex items-center gap-3 flex-wrap">
-              {mustFixCount > 0 && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${SEVERITY_STYLE.must_fix.border} ${SEVERITY_STYLE.must_fix.bg} ${SEVERITY_STYLE.must_fix.color}`}>{mustFixCount} Must Fix</span>}
-              {niceCount > 0 && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${SEVERITY_STYLE.nice_to_fix.border} ${SEVERITY_STYLE.nice_to_fix.bg} ${SEVERITY_STYLE.nice_to_fix.color}`}>{niceCount} Nice to Fix</span>}
-              {nitpickCount > 0 && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${SEVERITY_STYLE.nitpick.border} ${SEVERITY_STYLE.nitpick.bg} ${SEVERITY_STYLE.nitpick.color}`}>{nitpickCount} Nitpick</span>}
-              {allCodeFindings.length === 0 && <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-green-200 bg-green-50 text-green-700">All Clear</span>}
-              <span className="text-xs text-ink-3 ml-auto">{filesWithFindings} of {fileReviews.length} files with findings</span>
+        <div className="divide-y divide-panel-border">
+          {risks.map(({ file, mainCommits, authors }) => (
+            <div key={file} className="px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${mainCommits >= 5 ? 'bg-red-500' : mainCommits >= 2 ? 'bg-amber-500' : 'bg-yellow-400'}`} />
+                <span className="text-xs font-mono text-ink flex-1 truncate">{file}</span>
+                <span className="text-[11px] font-medium text-ink-3 flex-shrink-0">{mainCommits} commit{mainCommits !== 1 ? 's' : ''} in main</span>
+              </div>
+              {authors.length > 0 && (
+                <div className="ml-4 text-[11px] text-ink-3">
+                  Changed by: {authors.slice(0, 3).join(', ')}{authors.length > 3 ? ` +${authors.length - 3} more` : ''}
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="rounded-xl border border-panel-border bg-panel-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-panel-border bg-panel-bg">
-              <span className="text-xs font-semibold tracking-widest text-ink-3 uppercase">File-by-File Review ({fileReviews.length})</span>
-            </div>
-            <div className="divide-y divide-panel-border">
-              {fileReviews.map(({ file, additions, deletions, findings }) => {
-                const isExpanded = expandedFiles.has(file)
-                const worstSev = findings.length === 0 ? null
-                  : findings.some((f) => f.severity === 'must_fix') ? 'must_fix' as FindingSeverity
-                  : findings.some((f) => f.severity === 'nice_to_fix') ? 'nice_to_fix' as FindingSeverity
-                  : 'nitpick' as FindingSeverity
-
-                return (
-                  <div key={file}>
-                    <button onClick={() => toggleFile(file)} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-panel-hover text-left transition-colors">
-                      {worstSev ? <span className={`w-2 h-2 rounded-full flex-shrink-0 ${SEVERITY_STYLE[worstSev].dot}`} /> : <span className="w-2 h-2 rounded-full flex-shrink-0 bg-green-400" />}
-                      <span className="text-xs font-mono text-ink flex-1 truncate">{file}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {findings.length > 0 && <span className="text-xs text-ink-3">{findings.length}</span>}
-                        <span className="text-xs font-mono text-green-600">+{additions}</span>
-                        <span className="text-xs font-mono text-red-500">-{deletions}</span>
-                      </div>
-                      <svg className={`w-3.5 h-3.5 text-ink-3 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </button>
-                    {isExpanded && (
-                      <div className="border-t border-panel-border bg-panel-bg/50">
-                        {findings.length === 0 ? (
-                          <div className="px-4 py-3 text-xs text-green-600 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-400" />No issues found</div>
-                        ) : (
-                          <div className="divide-y divide-panel-border">{findings.map((finding, fi) => <FindingCard key={fi} finding={finding} showFile={false} />)}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -692,7 +504,7 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
   const [mergeStatus, setMergeStatus] = useState<'merged' | 'open' | 'unknown'>('unknown')
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<'activity' | 'diff' | 'risk'>('activity')
+  const [activeTab, setActiveTab] = useState<'activity' | 'diff' | 'conflict'>('activity')
 
   const loadStatus = useCallback(async () => {
     try {
@@ -914,8 +726,8 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
             <button onClick={() => setActiveTab('activity')} className={`flex-1 px-4 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${activeTab === 'activity' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-ink-3 hover:text-ink hover:bg-panel-hover'}`}>Activity</button>
             {prUrl && commitLog.length > 0 && (
               <>
-                <button onClick={() => setActiveTab('diff')} className={`flex-1 px-4 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${activeTab === 'diff' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-ink-3 hover:text-ink hover:bg-panel-hover'}`}>Diff Compare</button>
-                <button onClick={() => setActiveTab('risk')} title="Optional — static analysis based risk review" className={`flex-1 px-4 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors relative group ${activeTab === 'risk' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-ink-3 hover:text-ink hover:bg-panel-hover'}`}>Risk Review <span className="text-[9px] font-normal normal-case tracking-normal text-ink-3 ml-1">optional</span></button>
+                <button onClick={() => setActiveTab('diff')} className={`flex-1 px-4 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${activeTab === 'diff' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-ink-3 hover:text-ink hover:bg-panel-hover'}`}>Preview Changes</button>
+                <button onClick={() => setActiveTab('conflict')} className={`flex-1 px-4 py-2.5 text-xs font-semibold tracking-wide uppercase transition-colors ${activeTab === 'conflict' ? 'text-accent border-b-2 border-accent bg-accent/5' : 'text-ink-3 hover:text-ink hover:bg-panel-hover'}`}>Conflict Risk</button>
               </>
             )}
           </div>
@@ -988,11 +800,11 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
             )}
 
             {activeTab === 'diff' && prUrl && commitLog.length > 0 && (
-              <DiffCompareTab sessionId={session.id} baseBranch={session.baseBranch} />
+              <PreviewChangesTab sessionId={session.id} baseBranch={session.baseBranch} />
             )}
 
-            {activeTab === 'risk' && prUrl && commitLog.length > 0 && (
-              <PRRiskReviewTab sessionId={session.id} baseBranch={session.baseBranch} />
+            {activeTab === 'conflict' && prUrl && commitLog.length > 0 && (
+              <ConflictRiskTab sessionId={session.id} />
             )}
           </div>
         </div>

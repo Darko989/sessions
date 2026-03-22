@@ -642,6 +642,73 @@ export class GitService {
   }
 
   /**
+   * Get files recently changed in main/base branch that overlap with session changes.
+   * Returns files that changed in main in the last 30 days AND are also modified in the session.
+   */
+  async getConflictRisk(
+    worktreePath: string,
+    baseBranch: string,
+    remote = 'origin'
+  ): Promise<Array<{ file: string; mainCommits: number; authors: string[] }>> {
+    // Get files changed in this session vs base
+    let sessionFiles: string[] = []
+    try {
+      const out = await this.git(worktreePath, ['diff', '--name-only', `${remote}/${baseBranch}...HEAD`])
+      sessionFiles = out.split('\n').filter(Boolean).map(decodeGitPath)
+    } catch {
+      try {
+        const out = await this.git(worktreePath, ['diff', '--name-only', `${baseBranch}...HEAD`])
+        sessionFiles = out.split('\n').filter(Boolean).map(decodeGitPath)
+      } catch { return [] }
+    }
+    if (sessionFiles.length === 0) return []
+
+    // Get recent changes in main (last 30 days)
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    let mainLog: string
+    try {
+      // Fetch latest main first
+      await this.git(worktreePath, ['fetch', remote, baseBranch]).catch(() => {})
+      mainLog = await this.git(worktreePath, ['log', `${remote}/${baseBranch}`, '--since', since, '--name-only', '--pretty=format:%an'])
+    } catch {
+      try {
+        mainLog = await this.git(worktreePath, ['log', baseBranch, '--since', since, '--name-only', '--pretty=format:%an'])
+      } catch { return [] }
+    }
+
+    // Parse: author lines alternate with file lines
+    const mainFileInfo = new Map<string, { commits: number; authors: Set<string> }>()
+    let currentAuthor = ''
+    for (const line of mainLog.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      // Lines that look like file paths (contain / or .)
+      if (trimmed.includes('/') || trimmed.includes('.')) {
+        const decoded = decodeGitPath(trimmed)
+        const info = mainFileInfo.get(decoded) || { commits: 0, authors: new Set<string>() }
+        info.commits++
+        if (currentAuthor) info.authors.add(currentAuthor)
+        mainFileInfo.set(decoded, info)
+      } else {
+        currentAuthor = trimmed
+      }
+    }
+
+    // Find overlapping files
+    const risks: Array<{ file: string; mainCommits: number; authors: string[] }> = []
+    for (const file of sessionFiles) {
+      const info = mainFileInfo.get(file)
+      if (info && info.commits > 0) {
+        risks.push({ file, mainCommits: info.commits, authors: [...info.authors] })
+      }
+    }
+
+    // Sort by number of commits (most active first)
+    risks.sort((a, b) => b.mainCommits - a.mainCommits)
+    return risks
+  }
+
+  /**
    * Codebase-aware code review. Reads actual files from the worktree,
    * searches for duplicates, broken imports, existing patterns, etc.
    */

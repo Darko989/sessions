@@ -29,6 +29,7 @@ interface WindowAPI {
     getFileDiffVsBase: IpcFn
     runHealthChecks: IpcFn
     analyzeCodebase: IpcFn
+    getConflictRisk: IpcFn
   }
   repos: {
     getAll: IpcFn

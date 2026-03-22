@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAppStore } from '../../store/appStore'
-import { Settings, Repository } from '../../types'
+import { Settings, Repository, Session } from '../../types'
 import { Button } from '../common/Button'
 
 const inputCls =
@@ -21,10 +21,12 @@ const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode 
 )
 
 export const SettingsPanel: React.FC = () => {
-  const { settings, setSettings, repos, setRepos } = useAppStore()
+  const { settings, setSettings, repos, setRepos, setSessions } = useAppStore()
   const [form, setForm] = useState<Settings | null>(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (settings) {
@@ -64,11 +66,21 @@ export const SettingsPanel: React.FC = () => {
     if (dir) update('sessionsDirectory', dir)
   }
 
-  const removeRepo = async (id: string, name: string) => {
-    if (!confirm(`Remove "${name}"? Sessions won't be deleted.`)) return
-    await window.api.repos.remove(id)
-    const all = (await window.api.repos.getAll()) as Repository[]
-    setRepos(all)
+  const removeRepo = async () => {
+    if (!removeConfirm) return
+    setRemoving(true)
+    try {
+      await window.api.repos.remove(removeConfirm.id)
+      const [allRepos, allSessions] = await Promise.all([
+        window.api.repos.getAll() as Promise<Repository[]>,
+        window.api.sessions.getAll() as Promise<Session[]>
+      ])
+      setRepos(allRepos)
+      setSessions(allSessions)
+    } finally {
+      setRemoving(false)
+      setRemoveConfirm(null)
+    }
   }
 
   return (
@@ -126,7 +138,7 @@ export const SettingsPanel: React.FC = () => {
                       size="sm"
                       variant="ghost"
                       className="text-red-500 hover:text-red-400 hover:bg-red-500/10"
-                      onClick={() => removeRepo(r.id, r.name)}
+                      onClick={() => setRemoveConfirm({ id: r.id, name: r.name })}
                     >
                       Remove
                     </Button>
@@ -239,6 +251,44 @@ export const SettingsPanel: React.FC = () => {
           {saved && <span className="text-sm text-green-600">✓ Saved</span>}
         </div>
       </div>
+
+      {/* Remove repo confirmation modal */}
+      {removeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !removing && setRemoveConfirm(null)}>
+          <div className="bg-panel-card rounded-2xl shadow-xl border border-panel-border w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-ink">Remove repository</h3>
+                <p className="text-[12px] text-ink-3 font-medium">{removeConfirm.name}</p>
+              </div>
+            </div>
+            <p className="text-[13px] text-ink-2 font-medium leading-relaxed mb-5">
+              Are you sure? All sessions and worktrees for this repository will be permanently deleted.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRemoveConfirm(null)}
+                disabled={removing}
+                className="flex-1 text-[13px] font-semibold text-ink-3 hover:text-ink border border-panel-border rounded-xl py-2.5 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={removeRepo}
+                disabled={removing}
+                className="flex-1 text-[13px] font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {removing ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

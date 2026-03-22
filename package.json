@@ -1,6 +1,6 @@
 {
   "name": "branchless",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Work on multiple tasks in parallel without branch switching",
   "author": {
     "name": "Darko",
@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.1.7",
+    "react-diff-viewer-continued": "^4.2.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
