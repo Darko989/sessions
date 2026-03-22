@@ -82,7 +82,7 @@ if [[ "$PLATFORM" == "mac" ]]; then
   info "Launching..."
   open "/Applications/$APP_NAME.app"
 
-# ── Linux: install AppImage ───────────────────────────────────────────────────
+# ── Linux: install AppImage + desktop integration ────────────────────────────
 elif [[ "$PLATFORM" == "linux" ]]; then
   INSTALL_DIR="${HOME}/.local/bin"
   DEST="$INSTALL_DIR/$BINARY_NAME"
@@ -92,11 +92,50 @@ elif [[ "$PLATFORM" == "linux" ]]; then
   curl -fsSL -o "$DEST" "$ASSET_URL"
   chmod +x "$DEST"
 
+  # Install icon (256x256 extracted from build assets on GitHub)
+  ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
+  mkdir -p "$ICON_DIR"
+  ICON_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name == "icon-256x256.png") | .browser_download_url // empty')
+  if [[ -n "$ICON_URL" ]]; then
+    curl -fsSL -o "$ICON_DIR/$BINARY_NAME.png" "$ICON_URL"
+  else
+    # Fallback: extract icon from AppImage
+    TMP_EXTRACT=$(mktemp -d)
+    cd "$TMP_EXTRACT"
+    "$DEST" --appimage-extract "usr/share/icons/hicolor/256x256/apps/*.png" >/dev/null 2>&1 || true
+    EXTRACTED=$(find "$TMP_EXTRACT" -name "*.png" -path "*/256x256/*" | head -1)
+    if [[ -n "$EXTRACTED" ]]; then
+      cp "$EXTRACTED" "$ICON_DIR/$BINARY_NAME.png"
+    fi
+    rm -rf "$TMP_EXTRACT"
+    cd - >/dev/null
+  fi
+
+  # Create .desktop file
+  DESKTOP_DIR="${HOME}/.local/share/applications"
+  mkdir -p "$DESKTOP_DIR"
+  cat > "$DESKTOP_DIR/$BINARY_NAME.desktop" <<DESKTOP
+[Desktop Entry]
+Name=$APP_NAME
+Comment=Work on multiple tasks in parallel without branch switching
+Exec=$DEST --no-sandbox %U
+Icon=$BINARY_NAME
+Type=Application
+Categories=Development;IDE;
+StartupWMClass=Branchless
+Terminal=false
+DESKTOP
+
+  # Update desktop database so the app appears immediately
+  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
+  command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f -t "${HOME}/.local/share/icons/hicolor" 2>/dev/null || true
+
   if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     info "Add this to your shell profile to use '$BINARY_NAME' from anywhere:"
     echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc && source ~/.bashrc"
   fi
 
   ok "$APP_NAME installed to $DEST"
+  ok "Desktop entry created — $APP_NAME should appear in your app launcher"
   info "Run with:  $BINARY_NAME"
 fi

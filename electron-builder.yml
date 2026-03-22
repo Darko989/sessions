@@ -79,6 +79,13 @@ nsis:
 linux:
   icon: build/icons
   category: Development
+  executableName: branchless
+  desktop:
+    Name: Branchless
+    Comment: Work on multiple tasks in parallel without branch switching
+    Categories: Development;IDE;
+    StartupWMClass: branchless
+    MimeType: ""
   target:
     - target: AppImage
       arch:
