@@ -6,6 +6,16 @@ import { ActivityLog } from '../services/ActivityLog'
 
 // ── Cross-platform launcher helpers ──────────────────────────────────────────
 
+// Spawn a command using the user's login shell so PATH includes snap/flatpak/nvm etc.
+function spawnWithShell(cmd: string, args: string[], opts?: { cwd?: string }): ReturnType<typeof spawn> {
+  if (process.platform === 'linux') {
+    const userShell = process.env.SHELL || '/bin/bash'
+    const fullCmd = [cmd, ...args].map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ')
+    return spawn(userShell, ['-lc', fullCmd], { detached: true, stdio: 'ignore', cwd: opts?.cwd })
+  }
+  return spawn(cmd, args, { detached: true, stdio: 'ignore', cwd: opts?.cwd })
+}
+
 function openTerminal(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (process.platform === 'darwin') {
@@ -47,7 +57,6 @@ function openTerminal(cwd: string): Promise<void> {
 function openVSCode(cwd: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if (process.platform === 'darwin') {
-      // Try CLI first, then open -a as fallback
       const proc = spawn('code', [cwd], { detached: true, stdio: 'ignore' })
       proc.on('error', () => {
         spawn('open', ['-a', 'Visual Studio Code', cwd], { detached: true, stdio: 'ignore' }).unref()
@@ -56,7 +65,7 @@ function openVSCode(cwd: string): Promise<void> {
       proc.unref()
       setTimeout(resolve, 300)
     } else {
-      const proc = spawn('code', [cwd], { detached: true, stdio: 'ignore' })
+      const proc = spawnWithShell('code', [cwd])
       proc.on('error', () => reject(new Error('VS Code not found. Make sure "code" is in your PATH.')))
       proc.unref()
       setTimeout(resolve, 300)
@@ -110,7 +119,7 @@ function openCursor(cwd: string): Promise<void> {
       proc.unref()
       setTimeout(resolve, 300)
     } else {
-      const proc = spawn('cursor', [cwd], { detached: true, stdio: 'ignore' })
+      const proc = spawnWithShell('cursor', [cwd])
       proc.on('error', () => reject(new Error('Cursor not found. Make sure "cursor" is in your PATH.')))
       proc.unref()
       setTimeout(resolve, 300)
@@ -136,19 +145,20 @@ function openIntelliJ(cwd: string): Promise<void> {
       })
       proc.unref()
       setTimeout(resolve, 300)
-    } else {
-      const cmd = process.platform === 'win32' ? 'idea64' : 'idea'
-      const proc = spawn(cmd, [cwd], { detached: true, stdio: 'ignore' })
+    } else if (process.platform === 'win32') {
+      const proc = spawn('idea64', [cwd], { detached: true, stdio: 'ignore' })
       proc.on('error', () => {
-        if (process.platform === 'win32') {
-          const proc2 = spawn('idea', [cwd], { detached: true, stdio: 'ignore' })
-          proc2.on('error', () => reject(new Error('IntelliJ IDEA not found. Make sure "idea" is in your PATH.')))
-          proc2.unref()
-          setTimeout(resolve, 300)
-        } else {
-          reject(new Error('IntelliJ IDEA not found. Make sure "idea" is in your PATH.'))
-        }
+        const proc2 = spawn('idea', [cwd], { detached: true, stdio: 'ignore' })
+        proc2.on('error', () => reject(new Error('IntelliJ IDEA not found. Make sure "idea" is in your PATH.')))
+        proc2.unref()
+        setTimeout(resolve, 300)
       })
+      proc.unref()
+      setTimeout(resolve, 300)
+    } else {
+      // Linux
+      const proc = spawnWithShell('idea', [cwd])
+      proc.on('error', () => reject(new Error('IntelliJ IDEA not found. Make sure "idea" is in your PATH.')))
       proc.unref()
       setTimeout(resolve, 300)
     }
