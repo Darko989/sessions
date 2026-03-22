@@ -516,7 +516,11 @@ export class TicketService {
 
   // ── Combined ────────────────────────────────────────────────────────────────
 
-  async fetchAll(projectKey?: string): Promise<Ticket[]> {
+  async fetchAll(projectKey?: string, integration?: 'jira' | 'shortcut' | 'clickup'): Promise<Ticket[]> {
+    if (integration === 'jira') return this.fetchJiraTickets(projectKey)
+    if (integration === 'shortcut') return this.fetchShortcutTickets()
+    if (integration === 'clickup') return this.fetchClickupTasks()
+    // No integration specified — fetch all configured
     const [jira, shortcut, clickup] = await Promise.allSettled([
       this.fetchJiraTickets(projectKey),
       this.fetchShortcutTickets(),

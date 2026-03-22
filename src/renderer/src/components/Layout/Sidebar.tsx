@@ -897,7 +897,8 @@ const TicketModal: React.FC<{
   hasJira: boolean
   hasShortcut: boolean
   hasClickup: boolean
-}> = ({ projectKey, onSelect, onClose, hasJira, hasShortcut, hasClickup }) => {
+  integration?: 'jira' | 'shortcut' | 'clickup'
+}> = ({ projectKey, onSelect, onClose, hasJira, hasShortcut, hasClickup, integration }) => {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<Ticket[]>([])
@@ -911,10 +912,10 @@ const TicketModal: React.FC<{
   const integrationCount = [hasJira, hasShortcut, hasClickup].filter(Boolean).length
 
   useEffect(() => {
-    window.api.tickets.fetchAll(projectKey)
+    window.api.tickets.fetchAll(projectKey, integration)
       .then((t) => { setTickets(t as Ticket[]); setLoading(false) })
       .catch((e) => { setError(String(e)); setLoading(false) })
-  }, [projectKey])
+  }, [projectKey, integration])
 
   const handleSearch = useCallback((value: string) => {
     setSearch(value)
@@ -1136,9 +1137,9 @@ export const Sidebar: React.FC = () => {
   // Auto-update branch name whenever ticket or base branch changes (unless user typed their own)
   useEffect(() => {
     if (!branchEdited) {
-      setBranchName(makeBranchName(selectedTicket, baseBranch))
+      setBranchName(selectedRepo ? makeBranchName(selectedTicket, baseBranch) : '')
     }
-  }, [selectedTicket, baseBranch, branchEdited])
+  }, [selectedTicket, baseBranch, branchEdited, selectedRepo])
 
   const handleFetchOrigin = async () => {
     if (!selectedRepo || fetching) return
@@ -1356,7 +1357,7 @@ export const Sidebar: React.FC = () => {
             className={`w-[30px] h-[30px] flex-shrink-0 rounded-lg flex items-center justify-center transition-all ${
               fetchDone
                 ? 'bg-green-500 text-white shadow-sm'
-                : 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm disabled:opacity-40'
+                : 'bg-accent text-white hover:bg-accent-hover shadow-sm disabled:opacity-40'
             }`}
           >
             {fetchDone ? (
@@ -1426,14 +1427,20 @@ export const Sidebar: React.FC = () => {
             </>
           ) : (
             <>
-              {settings?.clickupApiToken && !settings?.jiraBaseUrl && !settings?.shortcutApiToken ? <ClickUpLogo size={13}/> : settings?.shortcutApiToken && !settings?.jiraBaseUrl ? <ShortcutLogo size={13}/> : <JiraLogo size={13}/>}
+              {(() => {
+                const ti = selectedRepo?.ticketIntegration
+                if (ti === 'clickup') return <ClickUpLogo size={13}/>
+                if (ti === 'shortcut') return <ShortcutLogo size={13}/>
+                if (ti === 'jira') return <JiraLogo size={13}/>
+                return <svg className="w-3.5 h-3.5 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+              })()}
               <span className="flex-1 text-left text-[13px] font-medium">
                 {(() => {
-                  const integrations: string[] = []
-                  if (settings?.jiraBaseUrl) integrations.push('JIRA')
-                  if (settings?.shortcutApiToken) integrations.push('Shortcut')
-                  if (settings?.clickupApiToken) integrations.push('ClickUp')
-                  return integrations.length > 0 ? `Link ${integrations.join(' / ')} ticket` : 'Link ticket'
+                  const ti = selectedRepo?.ticketIntegration
+                  if (ti === 'jira') return 'Link JIRA ticket'
+                  if (ti === 'shortcut') return 'Link Shortcut ticket'
+                  if (ti === 'clickup') return 'Link ClickUp ticket'
+                  return 'Link ticket (configure in Settings)'
                 })()}
               </span>
               <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1501,9 +1508,10 @@ export const Sidebar: React.FC = () => {
           projectKey={selectedRepo?.jiraProjectKey}
           onSelect={handleTicketSelect}
           onClose={() => setShowTicketModal(false)}
-          hasJira={!!(settings?.jiraBaseUrl && settings?.jiraEmail && settings?.jiraApiToken)}
-          hasShortcut={!!settings?.shortcutApiToken}
-          hasClickup={!!(settings?.clickupApiToken && settings?.clickupTeamId)}
+          integration={selectedRepo?.ticketIntegration}
+          hasJira={selectedRepo?.ticketIntegration === 'jira' && !!(settings?.jiraBaseUrl && settings?.jiraEmail && settings?.jiraApiToken)}
+          hasShortcut={selectedRepo?.ticketIntegration === 'shortcut' && !!settings?.shortcutApiToken}
+          hasClickup={selectedRepo?.ticketIntegration === 'clickup' && !!(settings?.clickupApiToken && settings?.clickupTeamId)}
         />
       )}
     </div>

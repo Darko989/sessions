@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { Settings, Repository, Session } from '../../types'
 import { Button } from '../common/Button'
@@ -20,6 +20,70 @@ const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode 
   </div>
 )
 
+const INTEGRATION_LABELS: Record<string, string> = { jira: 'JIRA', shortcut: 'Shortcut', clickup: 'ClickUp' }
+
+const IntegrationDropdown: React.FC<{
+  value?: 'jira' | 'shortcut' | 'clickup'
+  hasJira: boolean
+  hasShortcut: boolean
+  hasClickup: boolean
+  onChange: (val: 'jira' | 'shortcut' | 'clickup' | undefined) => void
+}> = ({ value, hasJira, hasShortcut, hasClickup, onChange }) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const options: { value: string; label: string }[] = [{ value: '', label: 'None' }]
+  if (hasJira) options.push({ value: 'jira', label: 'JIRA' })
+  if (hasShortcut) options.push({ value: 'shortcut', label: 'Shortcut' })
+  if (hasClickup) options.push({ value: 'clickup', label: 'ClickUp' })
+
+  return (
+    <div className="flex items-center gap-2 pt-1" ref={ref}>
+      <span className="text-xs text-ink-3">Tickets:</span>
+      <div className="relative">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 text-xs bg-panel-card border border-panel-border rounded-lg px-2.5 py-1.5 text-ink hover:border-ink-3 transition-colors"
+        >
+          <span>{value ? INTEGRATION_LABELS[value] : 'None'}</span>
+          <svg className={`w-3 h-3 text-ink-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        {open && (
+          <div className="absolute top-full left-0 mt-1 z-50 bg-panel-card border border-panel-border rounded-lg shadow-lg overflow-hidden min-w-[120px]">
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  onChange((opt.value || undefined) as 'jira' | 'shortcut' | 'clickup' | undefined)
+                  setOpen(false)
+                }}
+                className={`w-full text-left text-xs px-3 py-2 transition-colors ${
+                  (value || '') === opt.value
+                    ? 'bg-accent/10 text-accent font-semibold'
+                    : 'text-ink hover:bg-panel-hover'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export const SettingsPanel: React.FC = () => {
   const { settings, setSettings, repos, setRepos, setSessions } = useAppStore()
   const [form, setForm] = useState<Settings | null>(null)
@@ -27,6 +91,8 @@ export const SettingsPanel: React.FC = () => {
   const [saved, setSaved] = useState(false)
   const [removeConfirm, setRemoveConfirm] = useState<{ id: string; name: string } | null>(null)
   const [removing, setRemoving] = useState(false)
+  const [removeIntegration, setRemoveIntegration] = useState<'jira' | 'shortcut' | 'clickup' | null>(null)
+  const [removingIntegration, setRemovingIntegration] = useState(false)
 
   useEffect(() => {
     if (settings) {
@@ -143,6 +209,19 @@ export const SettingsPanel: React.FC = () => {
                       Remove
                     </Button>
                   </div>
+                  {/* Ticket integration selector */}
+                  <IntegrationDropdown
+                    value={r.ticketIntegration}
+                    hasJira={!!(form.jiraBaseUrl && form.jiraEmail && form.jiraApiToken)}
+                    hasShortcut={!!form.shortcutApiToken}
+                    hasClickup={!!(form.clickupApiToken && form.clickupTeamId)}
+                    onChange={async (val) => {
+                      const updated = await window.api.repos.update(r.id, {
+                        ticketIntegration: val || undefined
+                      }) as Repository
+                      setRepos(repos.map((repo) => repo.id === r.id ? updated : repo))
+                    }}
+                  />
                 </div>
               ))}
             </div>
@@ -151,7 +230,17 @@ export const SettingsPanel: React.FC = () => {
 
         {/* JIRA */}
         <section className="bg-panel-card rounded-xl border border-panel-border p-5">
-          <h3 className="text-sm font-semibold text-ink mb-4">JIRA Integration</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-ink">JIRA Integration</h3>
+            {(form.jiraBaseUrl || form.jiraEmail || form.jiraApiToken) && (
+              <button
+                onClick={() => setRemoveIntegration('jira')}
+                className="text-xs text-red-500 hover:text-red-400 font-medium"
+              >
+                Remove
+              </button>
+            )}
+          </div>
           <div className="space-y-4">
             <Field label="Base URL" hint="e.g. https://yourcompany.atlassian.net">
               <input
@@ -183,7 +272,17 @@ export const SettingsPanel: React.FC = () => {
 
         {/* Shortcut */}
         <section className="bg-panel-card rounded-xl border border-panel-border p-5">
-          <h3 className="text-sm font-semibold text-ink mb-4">Shortcut Integration</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-ink">Shortcut Integration</h3>
+            {form.shortcutApiToken && (
+              <button
+                onClick={() => setRemoveIntegration('shortcut')}
+                className="text-xs text-red-500 hover:text-red-400 font-medium"
+              >
+                Remove
+              </button>
+            )}
+          </div>
           <Field label="API Token">
             <input
               type="password"
@@ -197,7 +296,17 @@ export const SettingsPanel: React.FC = () => {
 
         {/* ClickUp */}
         <section className="bg-panel-card rounded-xl border border-panel-border p-5">
-          <h3 className="text-sm font-semibold text-ink mb-4">ClickUp Integration</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-ink">ClickUp Integration</h3>
+            {(form.clickupApiToken || form.clickupTeamId) && (
+              <button
+                onClick={() => setRemoveIntegration('clickup')}
+                className="text-xs text-red-500 hover:text-red-400 font-medium"
+              >
+                Remove
+              </button>
+            )}
+          </div>
           <div className="space-y-4">
             <Field label="API Token" hint="Personal token from clickup.com/api">
               <input
@@ -220,29 +329,6 @@ export const SettingsPanel: React.FC = () => {
           </div>
         </section>
 
-        {/* MCP */}
-        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
-          <h3 className="text-sm font-semibold text-ink mb-4">MCP Integration</h3>
-          <div className="space-y-4">
-            <Field label="Server URL">
-              <input
-                type="text"
-                value={form.mcpServerUrl}
-                onChange={(e) => update('mcpServerUrl', e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-            <Field label="Token">
-              <input
-                type="password"
-                value={form.mcpServerToken}
-                onChange={(e) => update('mcpServerToken', e.target.value)}
-                className={inputCls}
-              />
-            </Field>
-          </div>
-        </section>
-
         {/* Save */}
         <div className="flex items-center gap-3 pb-6">
           <Button variant="primary" onClick={handleSave} loading={saving}>
@@ -251,6 +337,68 @@ export const SettingsPanel: React.FC = () => {
           {saved && <span className="text-sm text-green-600">✓ Saved</span>}
         </div>
       </div>
+
+      {/* Remove integration confirmation modal */}
+      {removeIntegration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => !removingIntegration && setRemoveIntegration(null)}>
+          <div className="bg-panel-card rounded-2xl shadow-xl border border-panel-border w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-ink">Remove {INTEGRATION_LABELS[removeIntegration]} integration</h3>
+                <p className="text-[12px] text-ink-3 font-medium">This will clear all credentials</p>
+              </div>
+            </div>
+            <p className="text-[13px] text-ink-2 font-medium leading-relaxed mb-5">
+              Are you sure? Repositories using {INTEGRATION_LABELS[removeIntegration]} will be unlinked from this integration.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRemoveIntegration(null)}
+                disabled={removingIntegration}
+                className="flex-1 text-[13px] font-semibold text-ink-3 hover:text-ink border border-panel-border rounded-xl py-2.5 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setRemovingIntegration(true)
+                  try {
+                    const clearFields: Partial<Settings> = removeIntegration === 'jira'
+                      ? { jiraBaseUrl: '', jiraEmail: '', jiraApiToken: '' }
+                      : removeIntegration === 'shortcut'
+                        ? { shortcutApiToken: '' }
+                        : { clickupApiToken: '', clickupTeamId: '' }
+                    const updated = (await window.api.settings.update(clearFields)) as Settings
+                    setSettings(updated)
+                    setForm({ ...updated })
+                    // Unassign repos using this integration
+                    let currentRepos = [...repos]
+                    for (const r of currentRepos) {
+                      if (r.ticketIntegration === removeIntegration) {
+                        const updatedRepo = await window.api.repos.update(r.id, { ticketIntegration: undefined }) as Repository
+                        currentRepos = currentRepos.map((repo) => repo.id === r.id ? updatedRepo : repo)
+                      }
+                    }
+                    setRepos(currentRepos)
+                  } finally {
+                    setRemovingIntegration(false)
+                    setRemoveIntegration(null)
+                  }
+                }}
+                disabled={removingIntegration}
+                className="flex-1 text-[13px] font-semibold bg-red-500 hover:bg-red-600 text-white rounded-xl py-2.5 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {removingIntegration ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Remove repo confirmation modal */}
       {removeConfirm && (

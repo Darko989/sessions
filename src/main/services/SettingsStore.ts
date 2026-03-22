@@ -12,8 +12,6 @@ export interface Settings {
   shortcutApiToken: string
   clickupApiToken: string
   clickupTeamId: string
-  mcpServerUrl: string
-  mcpServerToken: string
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -25,9 +23,7 @@ const DEFAULT_SETTINGS: Settings = {
   jiraApiToken: '',
   shortcutApiToken: '',
   clickupApiToken: '',
-  clickupTeamId: '',
-  mcpServerUrl: '',
-  mcpServerToken: ''
+  clickupTeamId: ''
 }
 
 export class SettingsStore {

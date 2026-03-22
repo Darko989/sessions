@@ -6,6 +6,7 @@ export interface Repository {
   addedAt: string
   color?: string
   jiraProjectKey?: string
+  ticketIntegration?: 'jira' | 'shortcut' | 'clickup'
 }
 
 export interface Session {
@@ -42,8 +43,6 @@ export interface Settings {
   shortcutApiToken: string
   clickupApiToken: string
   clickupTeamId: string
-  mcpServerUrl: string
-  mcpServerToken: string
 }
 
 export interface Ticket {

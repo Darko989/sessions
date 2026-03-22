@@ -3,7 +3,7 @@ import { TicketService } from '../services/TicketService'
 
 export function registerTicketIpc(ticketService: TicketService): void {
   // Combined
-  ipcMain.handle('tickets:fetchAll', (_e, projectKey?: string) => ticketService.fetchAll(projectKey))
+  ipcMain.handle('tickets:fetchAll', (_e, projectKey?: string, integration?: 'jira' | 'shortcut' | 'clickup') => ticketService.fetchAll(projectKey, integration))
 
   // JIRA
   ipcMain.handle('tickets:fetchJira', (_e, projectKey?: string) => ticketService.fetchJiraTickets(projectKey))

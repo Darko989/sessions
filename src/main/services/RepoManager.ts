@@ -11,6 +11,7 @@ export interface Repository {
   addedAt: string
   color?: string
   jiraProjectKey?: string
+  ticketIntegration?: 'jira' | 'shortcut' | 'clickup'
 }
 
 export class RepoManager {
@@ -83,7 +84,7 @@ export class RepoManager {
     this.persist()
   }
 
-  update(id: string, partial: Partial<Pick<Repository, 'name' | 'defaultBranch' | 'color' | 'jiraProjectKey'>>): Repository {
+  update(id: string, partial: Partial<Pick<Repository, 'name' | 'defaultBranch' | 'color' | 'jiraProjectKey' | 'ticketIntegration'>>): Repository {
     const idx = this.repos.findIndex((r) => r.id === id)
     if (idx === -1) throw new Error(`Repo not found: ${id}`)
     this.repos[idx] = { ...this.repos[idx], ...partial }

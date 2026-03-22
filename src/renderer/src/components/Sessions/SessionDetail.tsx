@@ -643,7 +643,7 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
               <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded ${session.ticketId.startsWith('SC-') ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>{session.ticketId}</span>
             )}
             <StatusBadge status={status} />
-            <button onClick={handleSync} disabled={syncing} className="ml-auto flex items-center gap-1.5 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg px-3 py-1.5 disabled:opacity-50 shadow-sm">
+            <button onClick={handleSync} disabled={syncing} className="ml-auto flex items-center gap-1.5 text-xs font-medium text-white bg-accent hover:bg-accent-hover rounded-lg px-3 py-1.5 disabled:opacity-50 shadow-sm">
               <svg className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
               Sync
             </button>
@@ -710,7 +710,7 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
                 </div>
               </div>
               <p className="text-[13px] text-ink-2 font-medium leading-relaxed whitespace-pre-line mb-5">{appError.message}</p>
-              <button onClick={() => setAppError(null)} className="w-full text-[13px] font-semibold bg-blue-500 hover:bg-blue-600 text-white rounded-xl py-2.5 transition-colors shadow-sm">
+              <button onClick={() => setAppError(null)} className="w-full text-[13px] font-semibold bg-accent hover:bg-accent-hover text-white rounded-xl py-2.5 transition-colors shadow-sm">
                 Got it
               </button>
             </div>
