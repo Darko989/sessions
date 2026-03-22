@@ -23,7 +23,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hiddenInset',
+    title: 'Branchless',
     backgroundColor: '#0f172a',
     icon: is.dev
       ? join(__dirname, '../../resources/icon.png')

@@ -19,6 +19,14 @@ files:
 npmRebuild: false
 afterPack: build/afterPack.js
 
+# ── Size optimization ──────────────────────────────────────────────────────
+# Keep only English locale (~36MB saved)
+electronLanguages:
+  - en-US
+
+# Strip large files from the Electron binary
+asarUnpack: []
+
 extraResources:
   - from: resources/icon.png
     to: icon.png
