@@ -28,7 +28,7 @@ const api = {
     openInClaude: invoke('sessions:openInClaude'),
     openInCursor: invoke('sessions:openInCursor'),
     openInIntelliJ: invoke('sessions:openInIntelliJ'),
-    openInPhpStorm: invoke('sessions:openInPhpStorm'),
+    openInCodex: invoke('sessions:openInCodex'),
     openInTerminal: invoke('sessions:openInTerminal'),
     openInFinder: invoke('sessions:openInFinder'),
     getDiffCompare: invoke('sessions:getDiffCompare'),
@@ -56,14 +56,29 @@ const api = {
   },
   tickets: {
     fetchAll: invoke('tickets:fetchAll'),
+    // JIRA
     fetchJira: invoke('tickets:fetchJira'),
-    fetchShortcut: invoke('tickets:fetchShortcut'),
     searchJira: invoke('tickets:searchJira'),
     getJiraBaseUrl: invoke('tickets:getJiraBaseUrl'),
     isJiraConfigured: invoke('tickets:isJiraConfigured'),
     fetchJiraProjects: invoke('tickets:fetchJiraProjects'),
     fetchJiraIssueTypes: invoke('tickets:fetchJiraIssueTypes'),
-    createJira: invoke('tickets:createJira')
+    fetchJiraAssignableUsers: invoke('tickets:fetchJiraAssignableUsers'),
+    createJira: invoke('tickets:createJira'),
+    // Shortcut
+    fetchShortcut: invoke('tickets:fetchShortcut'),
+    searchShortcut: invoke('tickets:searchShortcut'),
+    fetchShortcutProjects: invoke('tickets:fetchShortcutProjects'),
+    fetchShortcutWorkflowStates: invoke('tickets:fetchShortcutWorkflowStates'),
+    createShortcut: invoke('tickets:createShortcut'),
+    isShortcutConfigured: invoke('tickets:isShortcutConfigured'),
+    // ClickUp
+    fetchClickup: invoke('tickets:fetchClickup'),
+    searchClickup: invoke('tickets:searchClickup'),
+    fetchClickupSpaces: invoke('tickets:fetchClickupSpaces'),
+    fetchClickupLists: invoke('tickets:fetchClickupLists'),
+    createClickup: invoke('tickets:createClickup'),
+    isClickupConfigured: invoke('tickets:isClickupConfigured')
   },
   activity: {
     getAll: invoke('activity:getAll'),

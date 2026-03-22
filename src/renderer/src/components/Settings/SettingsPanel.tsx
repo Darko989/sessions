@@ -73,7 +73,17 @@ export const SettingsPanel: React.FC = () => {
 
   return (
     <div className="h-full overflow-y-auto p-6 max-w-2xl">
-      <h2 className="text-xl font-bold text-ink mb-6">Settings</h2>
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => useAppStore.getState().setView('sessions')}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <h2 className="text-xl font-bold text-ink">Settings</h2>
+      </div>
 
       <div className="space-y-6">
         {/* General */}
@@ -171,6 +181,31 @@ export const SettingsPanel: React.FC = () => {
               placeholder="Token from app.shortcut.com/settings/api-tokens"
             />
           </Field>
+        </section>
+
+        {/* ClickUp */}
+        <section className="bg-panel-card rounded-xl border border-panel-border p-5">
+          <h3 className="text-sm font-semibold text-ink mb-4">ClickUp Integration</h3>
+          <div className="space-y-4">
+            <Field label="API Token" hint="Personal token from clickup.com/api">
+              <input
+                type="password"
+                value={form.clickupApiToken}
+                onChange={(e) => update('clickupApiToken', e.target.value)}
+                className={inputCls}
+                placeholder="pk_..."
+              />
+            </Field>
+            <Field label="Team ID" hint="Found in your ClickUp workspace URL">
+              <input
+                type="text"
+                value={form.clickupTeamId}
+                onChange={(e) => update('clickupTeamId', e.target.value)}
+                className={inputCls}
+                placeholder="e.g. 12345678"
+              />
+            </Field>
+          </div>
         </section>
 
         {/* MCP */}

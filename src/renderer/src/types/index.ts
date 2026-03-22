@@ -40,6 +40,8 @@ export interface Settings {
   jiraEmail: string
   jiraApiToken: string
   shortcutApiToken: string
+  clickupApiToken: string
+  clickupTeamId: string
   mcpServerUrl: string
   mcpServerToken: string
 }
@@ -49,7 +51,7 @@ export interface Ticket {
   key: string
   title: string
   status: string
-  type: 'jira' | 'shortcut'
+  type: 'jira' | 'shortcut' | 'clickup'
   url?: string
 }
 

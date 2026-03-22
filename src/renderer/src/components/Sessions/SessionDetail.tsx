@@ -6,7 +6,7 @@ import iconTerminal from '../../assets/icons/terminal.webp'
 import iconCursor from '../../assets/icons/cursor.jpeg'
 import iconClaude from '../../assets/icons/claude-code.png'
 import iconIntelliJ from '../../assets/icons/intellij.webp'
-import iconPhpStorm from '../../assets/icons/phpstorm.png'
+import iconCodex from '../../assets/icons/codex.png'
 
 interface Props {
   session: Session
@@ -792,7 +792,7 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
       const appLabel = apps.find(a => a.id === method)?.label ?? method
       if (msg.includes('ENOENT')) {
         const cliMap: Record<string, string> = {
-          'IntelliJ': 'idea', 'PhpStorm': 'phpstorm', 'Claude': 'claude',
+          'IntelliJ': 'idea', 'Codex CLI': 'codex', 'Claude': 'claude',
           'VS Code': 'code', 'Cursor': 'cursor'
         }
         const cli = cliMap[appLabel] || appLabel.toLowerCase()
@@ -813,7 +813,7 @@ export const SessionDetail: React.FC<Props> = ({ session }) => {
     { id: 'openInCursor',    label: 'Cursor',     icon: <AppIcon src={iconCursor}   label="Cursor"/>,     action: (id) => window.api.sessions.openInCursor(id) },
     { id: 'openInClaude',    label: 'Claude',     icon: <AppIcon src={iconClaude}    label="Claude"/>,     action: (id) => window.api.sessions.openInClaude(id) },
     { id: 'openInIntelliJ',  label: 'IntelliJ',   icon: <AppIcon src={iconIntelliJ}  label="IntelliJ"/>,   action: (id) => window.api.sessions.openInIntelliJ(id) },
-    { id: 'openInPhpStorm',  label: 'PhpStorm',   icon: <AppIcon src={iconPhpStorm}  label="PhpStorm"/>,   action: (id) => window.api.sessions.openInPhpStorm(id) },
+    { id: 'openInCodex',     label: 'Codex CLI',  icon: <AppIcon src={iconCodex}     label="Codex CLI"/>,  action: (id) => window.api.sessions.openInCodex(id) },
   ]
 
   const hasCommitsAhead = status && status.aheadBy > 0

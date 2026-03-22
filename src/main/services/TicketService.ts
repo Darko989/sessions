@@ -7,7 +7,7 @@ export interface Ticket {
   key: string
   title: string
   status: string
-  type: 'jira' | 'shortcut'
+  type: 'jira' | 'shortcut' | 'clickup'
   url?: string
 }
 
@@ -24,6 +24,35 @@ export interface JiraIssueTypeMeta {
   name: string
   iconUrl?: string
   fields: JiraFieldMeta[]
+}
+
+export interface JiraUser {
+  accountId: string
+  displayName: string
+  avatarUrl?: string
+}
+
+export interface ShortcutProject {
+  id: number
+  name: string
+}
+
+export interface ShortcutWorkflowState {
+  id: number
+  name: string
+  type: string // 'unstarted' | 'started' | 'done'
+}
+
+export interface ClickUpSpace {
+  id: string
+  name: string
+}
+
+export interface ClickUpList {
+  id: string
+  name: string
+  space?: { id: string; name: string }
+  folder?: { id: string; name: string }
 }
 
 export class TicketService {
@@ -76,6 +105,8 @@ export class TicketService {
     return this.request('POST', url, headers, JSON.stringify(body))
   }
 
+  // ── JIRA ────────────────────────────────────────────────────────────────────
+
   private baseUrl(): string {
     return this.settings.get().jiraBaseUrl.replace(/\/+$/, '')
   }
@@ -109,25 +140,6 @@ export class TicketService {
       status: issue.fields.status.name,
       type: 'jira' as const,
       url: `${base}/browse/${issue.key}`
-    }))
-  }
-
-  async fetchShortcutTickets(): Promise<Ticket[]> {
-    const { shortcutApiToken } = this.settings.get()
-    if (!shortcutApiToken) return []
-
-    const data = await this.get(
-      'https://api.app.shortcut.com/api/v3/search/stories?query=is:assigned+!is:done&page_size=50',
-      { 'Shortcut-Token': shortcutApiToken, 'Content-Type': 'application/json' }
-    ) as { data?: Array<{ id: number; name: string; story_type: string; app_url: string }> }
-
-    return (data.data ?? []).map((story) => ({
-      id: String(story.id),
-      key: `SC-${story.id}`,
-      title: story.name,
-      status: 'In Progress',
-      type: 'shortcut' as const,
-      url: story.app_url
     }))
   }
 
@@ -172,7 +184,6 @@ export class TicketService {
     const base = this.baseUrl()
     if (!base || !jiraEmail || !jiraApiToken) return []
 
-    // Fetch issue types for the project
     const typesData = await this.get(
       `${base}/rest/api/3/issue/createmeta/${projectKey}/issuetypes`,
       this.jiraHeaders()
@@ -180,7 +191,6 @@ export class TicketService {
 
     const issueTypes = typesData.issueTypes ?? []
 
-    // Fetch fields for each issue type in parallel
     const results = await Promise.allSettled(
       issueTypes.map(async (it) => {
         const fieldsData = await this.get(
@@ -199,7 +209,6 @@ export class TicketService {
           name: it.name,
           iconUrl: it.iconUrl,
           fields: (fieldsData.fields ?? []).filter((f) =>
-            // Only include renderable field types
             ['string', 'number', 'option', 'priority', 'user', 'array', 'date', 'datetime'].includes(f.schema.type) ||
             f.schema.system === 'description'
           )
@@ -210,6 +219,23 @@ export class TicketService {
     return results
       .filter((r): r is PromiseFulfilledResult<JiraIssueTypeMeta> => r.status === 'fulfilled')
       .map((r) => r.value)
+  }
+
+  async fetchJiraAssignableUsers(projectKey: string): Promise<JiraUser[]> {
+    const { jiraEmail, jiraApiToken } = this.settings.get()
+    const base = this.baseUrl()
+    if (!base || !jiraEmail || !jiraApiToken) return []
+
+    const data = await this.get(
+      `${base}/rest/api/3/user/assignable/search?project=${projectKey}&maxResults=100`,
+      this.jiraHeaders()
+    ) as Array<{ accountId: string; displayName: string; avatarUrls?: Record<string, string> }>
+
+    return (data ?? []).map((u) => ({
+      accountId: u.accountId,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrls?.['24x24']
+    }))
   }
 
   async createJiraTicket(
@@ -254,15 +280,253 @@ export class TicketService {
     return this.baseUrl()
   }
 
+  // ── Shortcut ────────────────────────────────────────────────────────────────
+
+  private shortcutHeaders(): Record<string, string> {
+    const { shortcutApiToken } = this.settings.get()
+    return { 'Shortcut-Token': shortcutApiToken, 'Content-Type': 'application/json' }
+  }
+
+  async fetchShortcutTickets(): Promise<Ticket[]> {
+    const { shortcutApiToken } = this.settings.get()
+    if (!shortcutApiToken) return []
+
+    const data = await this.get(
+      'https://api.app.shortcut.com/api/v3/search/stories?query=is:assigned+!is:done&page_size=50',
+      this.shortcutHeaders()
+    ) as { data?: Array<{ id: number; name: string; story_type: string; app_url: string }> }
+
+    return (data.data ?? []).map((story) => ({
+      id: String(story.id),
+      key: `SC-${story.id}`,
+      title: story.name,
+      status: 'In Progress',
+      type: 'shortcut' as const,
+      url: story.app_url
+    }))
+  }
+
+  async searchShortcut(query: string): Promise<Ticket[]> {
+    const { shortcutApiToken } = this.settings.get()
+    if (!shortcutApiToken) return []
+
+    const data = await this.get(
+      `https://api.app.shortcut.com/api/v3/search/stories?query=${encodeURIComponent(query + ' !is:done')}&page_size=20`,
+      this.shortcutHeaders()
+    ) as { data?: Array<{ id: number; name: string; story_type: string; app_url: string }> }
+
+    return (data.data ?? []).map((story) => ({
+      id: String(story.id),
+      key: `SC-${story.id}`,
+      title: story.name,
+      status: 'Active',
+      type: 'shortcut' as const,
+      url: story.app_url
+    }))
+  }
+
+  async fetchShortcutProjects(): Promise<ShortcutProject[]> {
+    const { shortcutApiToken } = this.settings.get()
+    if (!shortcutApiToken) return []
+
+    const data = await this.get(
+      'https://api.app.shortcut.com/api/v3/projects',
+      this.shortcutHeaders()
+    ) as Array<{ id: number; name: string }>
+
+    return (data ?? []).map((p) => ({ id: p.id, name: p.name }))
+  }
+
+  async fetchShortcutWorkflowStates(): Promise<ShortcutWorkflowState[]> {
+    const { shortcutApiToken } = this.settings.get()
+    if (!shortcutApiToken) return []
+
+    const workflows = await this.get(
+      'https://api.app.shortcut.com/api/v3/workflows',
+      this.shortcutHeaders()
+    ) as Array<{ states: Array<{ id: number; name: string; type: string }> }>
+
+    // Flatten all states from all workflows
+    const states: ShortcutWorkflowState[] = []
+    for (const wf of workflows ?? []) {
+      for (const s of wf.states ?? []) {
+        states.push({ id: s.id, name: s.name, type: s.type })
+      }
+    }
+    return states
+  }
+
+  async createShortcutStory(
+    name: string,
+    projectId: number,
+    storyType: string,
+    description?: string,
+    workflowStateId?: number
+  ): Promise<Ticket> {
+    const { shortcutApiToken } = this.settings.get()
+    if (!shortcutApiToken) throw new Error('Shortcut not configured')
+
+    const body: Record<string, unknown> = {
+      name,
+      project_id: projectId,
+      story_type: storyType
+    }
+    if (description) body.description = description
+    if (workflowStateId) body.workflow_state_id = workflowStateId
+
+    const result = await this.post(
+      'https://api.app.shortcut.com/api/v3/stories',
+      this.shortcutHeaders(),
+      body
+    ) as { id: number; name: string; app_url: string }
+
+    return {
+      id: String(result.id),
+      key: `SC-${result.id}`,
+      title: name,
+      status: 'Unstarted',
+      type: 'shortcut' as const,
+      url: result.app_url
+    }
+  }
+
+  isShortcutConfigured(): boolean {
+    const { shortcutApiToken } = this.settings.get()
+    return !!shortcutApiToken
+  }
+
+  // ── ClickUp ─────────────────────────────────────────────────────────────────
+
+  private clickupHeaders(): Record<string, string> {
+    const { clickupApiToken } = this.settings.get()
+    return { Authorization: clickupApiToken, 'Content-Type': 'application/json' }
+  }
+
+  async fetchClickupTasks(): Promise<Ticket[]> {
+    const { clickupApiToken, clickupTeamId } = this.settings.get()
+    if (!clickupApiToken || !clickupTeamId) return []
+
+    // Fetch tasks assigned to the authenticated user that are not closed
+    const data = await this.get(
+      `https://api.clickup.com/api/v2/team/${clickupTeamId}/task?statuses[]=open&statuses[]=in+progress&statuses[]=to+do&subtasks=true&include_closed=false&order_by=updated&reverse=true&page=0`,
+      this.clickupHeaders()
+    ) as { tasks?: Array<{ id: string; name: string; status: { status: string }; url: string; custom_id?: string }> }
+
+    return (data.tasks ?? []).map((t) => ({
+      id: t.id,
+      key: t.custom_id || `CU-${t.id.slice(-6)}`,
+      title: t.name,
+      status: t.status.status,
+      type: 'clickup' as const,
+      url: t.url
+    }))
+  }
+
+  async searchClickup(query: string): Promise<Ticket[]> {
+    const { clickupApiToken, clickupTeamId } = this.settings.get()
+    if (!clickupApiToken || !clickupTeamId) return []
+
+    const data = await this.get(
+      `https://api.clickup.com/api/v2/team/${clickupTeamId}/task?name=${encodeURIComponent(query)}&include_closed=false&page=0`,
+      this.clickupHeaders()
+    ) as { tasks?: Array<{ id: string; name: string; status: { status: string }; url: string; custom_id?: string }> }
+
+    return (data.tasks ?? []).map((t) => ({
+      id: t.id,
+      key: t.custom_id || `CU-${t.id.slice(-6)}`,
+      title: t.name,
+      status: t.status.status,
+      type: 'clickup' as const,
+      url: t.url
+    }))
+  }
+
+  async fetchClickupSpaces(): Promise<ClickUpSpace[]> {
+    const { clickupApiToken, clickupTeamId } = this.settings.get()
+    if (!clickupApiToken || !clickupTeamId) return []
+
+    const data = await this.get(
+      `https://api.clickup.com/api/v2/team/${clickupTeamId}/space?archived=false`,
+      this.clickupHeaders()
+    ) as { spaces?: Array<{ id: string; name: string }> }
+
+    return (data.spaces ?? []).map((s) => ({ id: s.id, name: s.name }))
+  }
+
+  async fetchClickupLists(spaceId: string): Promise<ClickUpList[]> {
+    const { clickupApiToken } = this.settings.get()
+    if (!clickupApiToken) return []
+
+    // Get folderless lists
+    const folderlessData = await this.get(
+      `https://api.clickup.com/api/v2/space/${spaceId}/list?archived=false`,
+      this.clickupHeaders()
+    ) as { lists?: Array<{ id: string; name: string }> }
+
+    const lists: ClickUpList[] = (folderlessData.lists ?? []).map((l) => ({
+      id: l.id, name: l.name
+    }))
+
+    // Get folders and their lists
+    const foldersData = await this.get(
+      `https://api.clickup.com/api/v2/space/${spaceId}/folder?archived=false`,
+      this.clickupHeaders()
+    ) as { folders?: Array<{ id: string; name: string; lists: Array<{ id: string; name: string }> }> }
+
+    for (const folder of foldersData.folders ?? []) {
+      for (const l of folder.lists ?? []) {
+        lists.push({ id: l.id, name: l.name, folder: { id: folder.id, name: folder.name } })
+      }
+    }
+
+    return lists
+  }
+
+  async createClickupTask(
+    listId: string,
+    name: string,
+    description?: string
+  ): Promise<Ticket> {
+    const { clickupApiToken } = this.settings.get()
+    if (!clickupApiToken) throw new Error('ClickUp not configured')
+
+    const body: Record<string, unknown> = { name }
+    if (description) body.description = description
+
+    const result = await this.post(
+      `https://api.clickup.com/api/v2/list/${listId}/task`,
+      this.clickupHeaders(),
+      body
+    ) as { id: string; name: string; url: string; custom_id?: string }
+
+    return {
+      id: result.id,
+      key: result.custom_id || `CU-${result.id.slice(-6)}`,
+      title: name,
+      status: 'Open',
+      type: 'clickup' as const,
+      url: result.url
+    }
+  }
+
+  isClickupConfigured(): boolean {
+    const { clickupApiToken, clickupTeamId } = this.settings.get()
+    return !!(clickupApiToken && clickupTeamId)
+  }
+
+  // ── Combined ────────────────────────────────────────────────────────────────
+
   async fetchAll(projectKey?: string): Promise<Ticket[]> {
-    const [jira, shortcut] = await Promise.allSettled([
+    const [jira, shortcut, clickup] = await Promise.allSettled([
       this.fetchJiraTickets(projectKey),
-      this.fetchShortcutTickets()
+      this.fetchShortcutTickets(),
+      this.fetchClickupTasks()
     ])
     if (jira.status === 'rejected') throw jira.reason
     return [
       ...jira.value,
-      ...(shortcut.status === 'fulfilled' ? shortcut.value : [])
+      ...(shortcut.status === 'fulfilled' ? shortcut.value : []),
+      ...(clickup.status === 'fulfilled' ? clickup.value : [])
     ]
   }
 }

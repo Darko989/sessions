@@ -21,7 +21,7 @@ interface WindowAPI {
     openInCursor: IpcFn
     openInPyCharm: IpcFn
     openInIntelliJ: IpcFn
-    openInPhpStorm: IpcFn
+    openInCodex: IpcFn
     openInTerminal: IpcFn
     openInFinder: IpcFn
     getDiffCompare: IpcFn
@@ -49,14 +49,29 @@ interface WindowAPI {
   }
   tickets: {
     fetchAll: IpcFn
+    // JIRA
     fetchJira: IpcFn
-    fetchShortcut: IpcFn
     searchJira: IpcFn
     getJiraBaseUrl: IpcFn
     isJiraConfigured: IpcFn
     fetchJiraProjects: IpcFn
     fetchJiraIssueTypes: IpcFn
+    fetchJiraAssignableUsers: IpcFn
     createJira: IpcFn
+    // Shortcut
+    fetchShortcut: IpcFn
+    searchShortcut: IpcFn
+    fetchShortcutProjects: IpcFn
+    fetchShortcutWorkflowStates: IpcFn
+    createShortcut: IpcFn
+    isShortcutConfigured: IpcFn
+    // ClickUp
+    fetchClickup: IpcFn
+    searchClickup: IpcFn
+    fetchClickupSpaces: IpcFn
+    fetchClickupLists: IpcFn
+    createClickup: IpcFn
+    isClickupConfigured: IpcFn
   }
   activity: {
     getAll: IpcFn

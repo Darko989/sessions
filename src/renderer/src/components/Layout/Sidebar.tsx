@@ -17,6 +17,13 @@ const ShortcutLogo = ({ size = 14 }: { size?: number }) => (
   <img src={iconShortcut} alt="Shortcut" width={size} height={size} className="object-contain flex-shrink-0" draggable={false}/>
 )
 
+const ClickUpLogo = ({ size = 14 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+    <path d="M4 17.5l4-3.5c1.7 2 3.3 3 4 3 .7 0 2.3-1 4-3l4 3.5c-2.3 3-5 4.5-8 4.5s-5.7-1.5-8-4.5z" fill="#7B68EE"/>
+    <path d="M12 6l-7.5 6.5 3 2.5L12 11l4.5 4 3-2.5L12 6z" fill="#49CCF9"/>
+  </svg>
+)
+
 // ── Branch modal ───────────────────────────────────────────────────────────────
 
 interface BranchEntry { repo: Repository; branch: string }
@@ -136,10 +143,10 @@ const TicketRow: React.FC<{ ticket: Ticket; onSelect: () => void }> = ({ ticket:
     className="w-full text-left px-5 py-2.5 hover:bg-panel-hover border-b border-panel-border/30 last:border-0 flex items-start gap-3"
   >
     <span className="mt-0.5 flex-shrink-0">
-      {t.type === 'jira' ? <JiraLogo size={13}/> : <ShortcutLogo size={13}/>}
+      {t.type === 'jira' ? <JiraLogo size={13}/> : t.type === 'shortcut' ? <ShortcutLogo size={13}/> : <ClickUpLogo size={13}/>}
     </span>
     <div className="flex-1 min-w-0">
-      <span className={`text-xs font-mono font-bold ${t.type === 'jira' ? 'text-blue-500' : 'text-purple-500'}`}>
+      <span className={`text-xs font-mono font-bold ${t.type === 'jira' ? 'text-blue-500' : t.type === 'shortcut' ? 'text-purple-500' : 'text-indigo-500'}`}>
         {t.key}
       </span>
       <p className="text-sm text-ink leading-snug truncate mt-0.5">{t.title}</p>
@@ -166,6 +173,94 @@ function groupByStatus(tickets: Ticket[]): { status: string; tickets: Ticket[] }
       return ai - bi
     })
     .map(([status, tickets]) => ({ status, tickets }))
+}
+
+// ── Custom select dropdown (matches repo dropdown style) ──────────────────────
+
+const CustomSelect: React.FC<{
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+  placeholder?: string
+  searchable?: boolean
+}> = ({ value, options, onChange, placeholder, searchable }) => {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const selected = options.find(o => o.value === value)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (open && searchable) {
+      setSearch('')
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [open, searchable])
+
+  const filtered = searchable && search.trim()
+    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+    : options
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 bg-panel-card border border-panel-border rounded-xl pl-3 pr-8 py-2 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/30 shadow-sm hover:border-ink-4 transition-colors"
+      >
+        <span className="text-[13px] font-semibold text-ink truncate">
+          {selected?.label ?? placeholder ?? 'Select…'}
+        </span>
+      </button>
+      <svg className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-ink-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/>
+      </svg>
+      {open && (
+        <div className="absolute z-40 top-full left-0 right-0 mt-1 bg-panel-card border border-panel-border rounded-xl shadow-xl overflow-hidden flex flex-col max-h-56">
+          {searchable && (
+            <div className="px-2 py-1.5 border-b border-panel-border flex-shrink-0">
+              <div className="relative">
+                <svg className="absolute left-2 top-1.5 w-3.5 h-3.5 text-ink-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full pl-7 pr-2 py-1 text-xs bg-panel-hover border border-panel-border rounded-lg text-ink placeholder-ink-3 focus:outline-none focus:ring-1 focus:ring-accent/30"
+                />
+              </div>
+            </div>
+          )}
+          <div className="overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-ink-3 text-center">No results</div>
+            ) : filtered.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => { onChange(o.value); setOpen(false) }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-panel-hover transition-colors ${value === o.value ? 'bg-accent/5' : ''}`}
+              >
+                <span className="text-[13px] font-medium text-ink truncate flex-1">{o.label}</span>
+                {value === o.value && (
+                  <svg className="w-3.5 h-3.5 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── In-app ticket creation form ────────────────────────────────────────────────
@@ -210,6 +305,8 @@ const CreateTicketForm: React.FC<{
   const [summary, setSummary] = useState('')
   // Dynamic field values keyed by fieldId
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
+  const [assigneeId, setAssigneeId] = useState('')
+  const [assignableUsers, setAssignableUsers] = useState<Array<{ accountId: string; displayName: string; avatarUrl?: string }>>([])
 
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -227,12 +324,13 @@ const CreateTicketForm: React.FC<{
       .finally(() => setLoadingProjects(false))
   }, [])
 
-  // Load issue types when project changes
+  // Load issue types and assignable users when project changes
   useEffect(() => {
     if (!projectKey) return
     setIssueTypes([])
     setSelectedTypeId('')
     setFieldValues({})
+    setAssigneeId('')
     setLoadingTypes(true)
     window.api.tickets.fetchJiraIssueTypes(projectKey)
       .then((types) => {
@@ -242,6 +340,9 @@ const CreateTicketForm: React.FC<{
       })
       .catch(() => {})
       .finally(() => setLoadingTypes(false))
+    window.api.tickets.fetchJiraAssignableUsers(projectKey)
+      .then((users) => setAssignableUsers(users as Array<{ accountId: string; displayName: string; avatarUrl?: string }>))
+      .catch(() => setAssignableUsers([]))
   }, [projectKey])
 
   const selectedType = issueTypes.find(t => t.id === selectedTypeId)
@@ -251,6 +352,7 @@ const CreateTicketForm: React.FC<{
 
   const buildExtraFields = (): Record<string, unknown> => {
     const extra: Record<string, unknown> = {}
+    if (assigneeId) extra.assignee = { id: assigneeId }
     for (const f of fields) {
       const val = fieldValues[f.fieldId]
       if (!val) continue
@@ -313,13 +415,13 @@ const CreateTicketForm: React.FC<{
           {loadingProjects ? (
             <div className="flex items-center gap-2 text-xs text-ink-3"><Spinner/>Loading projects…</div>
           ) : projects.length > 0 ? (
-            <select
+            <CustomSelect
               value={projectKey}
-              onChange={(e) => setProjectKey(e.target.value)}
-              className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2 text-ink focus:outline-none focus:ring-2 focus:ring-accent/30"
-            >
-              {projects.map((p) => <option key={p.key} value={p.key}>{p.key} — {p.name}</option>)}
-            </select>
+              options={projects.map((p) => ({ value: p.key, label: `${p.key} — ${p.name}` }))}
+              onChange={setProjectKey}
+              placeholder="Select project…"
+              searchable
+            />
           ) : (
             <input autoFocus type="text" value={projectKey} onChange={(e) => setProjectKey(e.target.value.toUpperCase())}
               placeholder="e.g. PROJ"
@@ -367,6 +469,20 @@ const CreateTicketForm: React.FC<{
               onChange={(e) => setSummary(e.target.value)}
               placeholder="What needs to be done?"
               className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
+            />
+          </div>
+        )}
+
+        {/* Assignee */}
+        {selectedTypeId && assignableUsers.length > 0 && (
+          <div>
+            <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Assignee</label>
+            <CustomSelect
+              value={assigneeId}
+              options={[{ value: '', label: 'Unassigned' }, ...assignableUsers.map((u) => ({ value: u.accountId, label: u.displayName }))]}
+              onChange={setAssigneeId}
+              placeholder="Unassigned"
+              searchable
             />
           </div>
         )}
@@ -483,22 +599,316 @@ const CreateTicketForm: React.FC<{
   )
 }
 
+// ── Shortcut ticket creation form ────────────────────────────────────────────
+
+const STORY_TYPES = ['feature', 'bug', 'chore']
+
+const CreateShortcutForm: React.FC<{
+  onCreated: (t: Ticket) => void
+  onBack: () => void
+}> = ({ onCreated, onBack }) => {
+  const [projects, setProjects] = useState<Array<{ id: number; name: string }>>([])
+  const [projectId, setProjectId] = useState<number | null>(null)
+  const [loadingProjects, setLoadingProjects] = useState(true)
+  const [workflowStates, setWorkflowStates] = useState<Array<{ id: number; name: string; type: string }>>([])
+  const [workflowStateId, setWorkflowStateId] = useState<number | null>(null)
+  const [storyType, setStoryType] = useState('feature')
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      window.api.tickets.fetchShortcutProjects(),
+      window.api.tickets.fetchShortcutWorkflowStates()
+    ]).then(([p, s]) => {
+      const pl = p as Array<{ id: number; name: string }>
+      const sl = s as Array<{ id: number; name: string; type: string }>
+      setProjects(pl)
+      if (pl.length > 0) setProjectId(pl[0].id)
+      setWorkflowStates(sl)
+      const unstarted = sl.find(st => st.type === 'unstarted')
+      if (unstarted) setWorkflowStateId(unstarted.id)
+    }).catch(() => {}).finally(() => setLoadingProjects(false))
+  }, [])
+
+  const handleCreate = async () => {
+    if (!name.trim() || !projectId) return
+    setCreating(true)
+    setError('')
+    try {
+      const ticket = await window.api.tickets.createShortcut(
+        name.trim(), projectId, storyType, description.trim() || undefined, workflowStateId ?? undefined
+      ) as Ticket
+      onCreated(ticket)
+    } catch (err) {
+      setError(String(err).replace(/^Error:\s*/, '').slice(0, 300))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-panel-border">
+        <button onClick={onBack} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <ShortcutLogo size={16}/>
+        <span className="text-sm font-semibold text-ink">Create Shortcut story</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Project */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Project</label>
+          {loadingProjects ? (
+            <div className="flex items-center gap-2 text-xs text-ink-3"><Spinner/>Loading…</div>
+          ) : (
+            <CustomSelect
+              value={String(projectId ?? '')}
+              options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+              onChange={(v) => setProjectId(Number(v))}
+              placeholder="Select project…"
+              searchable
+            />
+          )}
+        </div>
+
+        {/* Story type */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Type</label>
+          <div className="flex flex-wrap gap-1.5">
+            {STORY_TYPES.map((t) => (
+              <button key={t} onClick={() => setStoryType(t)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all capitalize ${
+                  storyType === t ? 'bg-accent text-white border-accent' : 'bg-panel-hover text-ink-2 border-panel-border hover:border-ink-3'
+                }`}>{t}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Name */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">
+            Name <span className="text-red-400">*</span>
+          </label>
+          <input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="What needs to be done?"
+            className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"/>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add details…" rows={3}
+            className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"/>
+        </div>
+
+        {/* Workflow state */}
+        {workflowStates.length > 0 && (
+          <div>
+            <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">State</label>
+            <CustomSelect
+              value={String(workflowStateId ?? '')}
+              options={workflowStates.map((s) => ({ value: String(s.id), label: s.name }))}
+              onChange={(v) => setWorkflowStateId(Number(v))}
+              placeholder="Select state…"
+            />
+          </div>
+        )}
+
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">{error}</div>
+        )}
+      </div>
+
+      <div className="px-5 py-4 border-t border-panel-border flex gap-2 justify-end">
+        <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-ink-2 bg-panel-hover border border-panel-border rounded-lg hover:bg-panel-border transition-colors">Cancel</button>
+        <button onClick={handleCreate} disabled={creating || !name.trim() || !projectId}
+          className="px-5 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
+          {creating ? <Spinner/> : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+            </svg>
+          )}
+          {creating ? 'Creating…' : 'Create Story'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── ClickUp task creation form ──────────────────────────────────────────────
+
+const CreateClickupForm: React.FC<{
+  onCreated: (t: Ticket) => void
+  onBack: () => void
+}> = ({ onCreated, onBack }) => {
+  const [spaces, setSpaces] = useState<Array<{ id: string; name: string }>>([])
+  const [spaceId, setSpaceId] = useState('')
+  const [lists, setLists] = useState<Array<{ id: string; name: string; folder?: { id: string; name: string } }>>([])
+  const [listId, setListId] = useState('')
+  const [loadingSpaces, setLoadingSpaces] = useState(true)
+  const [loadingLists, setLoadingLists] = useState(false)
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    window.api.tickets.fetchClickupSpaces()
+      .then((s) => {
+        const sl = s as Array<{ id: string; name: string }>
+        setSpaces(sl)
+        if (sl.length > 0) setSpaceId(sl[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSpaces(false))
+  }, [])
+
+  useEffect(() => {
+    if (!spaceId) return
+    setLists([])
+    setListId('')
+    setLoadingLists(true)
+    window.api.tickets.fetchClickupLists(spaceId)
+      .then((l) => {
+        const ll = l as Array<{ id: string; name: string; folder?: { id: string; name: string } }>
+        setLists(ll)
+        if (ll.length > 0) setListId(ll[0].id)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingLists(false))
+  }, [spaceId])
+
+  const handleCreate = async () => {
+    if (!name.trim() || !listId) return
+    setCreating(true)
+    setError('')
+    try {
+      const ticket = await window.api.tickets.createClickup(
+        listId, name.trim(), description.trim() || undefined
+      ) as Ticket
+      onCreated(ticket)
+    } catch (err) {
+      setError(String(err).replace(/^Error:\s*/, '').slice(0, 300))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-panel-border">
+        <button onClick={onBack} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <ClickUpLogo size={16}/>
+        <span className="text-sm font-semibold text-ink">Create ClickUp task</span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {/* Space */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Space</label>
+          {loadingSpaces ? (
+            <div className="flex items-center gap-2 text-xs text-ink-3"><Spinner/>Loading…</div>
+          ) : (
+            <CustomSelect
+              value={spaceId}
+              options={spaces.map((s) => ({ value: s.id, label: s.name }))}
+              onChange={setSpaceId}
+              placeholder="Select space…"
+              searchable
+            />
+          )}
+        </div>
+
+        {/* List */}
+        {spaceId && (
+          <div>
+            <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">List</label>
+            {loadingLists ? (
+              <div className="flex items-center gap-2 text-xs text-ink-3"><Spinner/>Loading…</div>
+            ) : (
+              <CustomSelect
+                value={listId}
+                options={lists.map((l) => ({ value: l.id, label: l.folder ? `${l.folder.name} / ${l.name}` : l.name }))}
+                onChange={setListId}
+                searchable
+                placeholder="Select list…"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Name */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">
+            Task name <span className="text-red-400">*</span>
+          </label>
+          <input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)}
+            placeholder="What needs to be done?"
+            className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"/>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-[10px] font-bold tracking-wider text-ink-3 uppercase block mb-1.5">Description</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder="Add details…" rows={3}
+            className="w-full text-sm bg-panel-card border border-panel-border rounded-xl px-3 py-2.5 text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none"/>
+        </div>
+
+        {error && (
+          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">{error}</div>
+        )}
+      </div>
+
+      <div className="px-5 py-4 border-t border-panel-border flex gap-2 justify-end">
+        <button onClick={onBack} className="px-4 py-2 text-sm font-medium text-ink-2 bg-panel-hover border border-panel-border rounded-lg hover:bg-panel-border transition-colors">Cancel</button>
+        <button onClick={handleCreate} disabled={creating || !name.trim() || !listId}
+          className="px-5 py-2 text-sm font-semibold text-white bg-accent rounded-lg hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors">
+          {creating ? <Spinner/> : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+            </svg>
+          )}
+          {creating ? 'Creating…' : 'Create Task'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Ticket modal ────────────────────────────────────────────────────────────────
 
 const TicketModal: React.FC<{
   projectKey?: string
   onSelect: (t: Ticket) => void
   onClose: () => void
-}> = ({ projectKey, onSelect, onClose }) => {
+  hasJira: boolean
+  hasShortcut: boolean
+  hasClickup: boolean
+}> = ({ projectKey, onSelect, onClose, hasJira, hasShortcut, hasClickup }) => {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [search, setSearch] = useState('')
   const [results, setResults] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState('')
-  const [view, setView] = useState<'list' | 'create'>('list')
+  const [view, setView] = useState<'list' | 'create-jira' | 'create-shortcut' | 'create-clickup'>('list')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+
+  const integrationCount = [hasJira, hasShortcut, hasClickup].filter(Boolean).length
 
   useEffect(() => {
     window.api.tickets.fetchAll(projectKey)
@@ -513,12 +923,17 @@ const TicketModal: React.FC<{
     setSearching(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await window.api.tickets.searchJira(value, projectKey) as Ticket[]
-        setResults(res)
+        const searches: Promise<Ticket[]>[] = []
+        if (hasJira) searches.push(window.api.tickets.searchJira(value, projectKey) as Promise<Ticket[]>)
+        if (hasShortcut) searches.push(window.api.tickets.searchShortcut(value) as Promise<Ticket[]>)
+        if (hasClickup) searches.push(window.api.tickets.searchClickup(value) as Promise<Ticket[]>)
+        const all = await Promise.allSettled(searches)
+        const merged = all.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+        setResults(merged)
       } catch { setResults([]) }
       finally { setSearching(false) }
     }, 350)
-  }, [projectKey])
+  }, [projectKey, hasJira, hasShortcut, hasClickup])
 
   const handleCreated = (t: Ticket) => {
     setTickets((prev) => [t, ...prev])
@@ -537,29 +952,51 @@ const TicketModal: React.FC<{
     >
       <div className="bg-panel-card rounded-2xl shadow-2xl border border-panel-border w-[580px] h-[72vh] flex flex-col overflow-hidden">
 
-        {view === 'create' ? (
-          <CreateTicketForm
-            defaultProjectKey={projectKey}
-            onCreated={handleCreated}
-            onBack={() => setView('list')}
-          />
+        {view === 'create-jira' ? (
+          <CreateTicketForm defaultProjectKey={projectKey} onCreated={handleCreated} onBack={() => setView('list')}/>
+        ) : view === 'create-shortcut' ? (
+          <CreateShortcutForm onCreated={handleCreated} onBack={() => setView('list')}/>
+        ) : view === 'create-clickup' ? (
+          <CreateClickupForm onCreated={handleCreated} onBack={() => setView('list')}/>
         ) : (
           <>
             <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-panel-border">
               <div className="flex items-center gap-2">
-                <JiraLogo size={16}/>
                 <span className="text-sm font-semibold text-ink">Select ticket</span>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setView('create')}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
-                  </svg>
-                  New Ticket
-                </button>
+                {integrationCount === 1 ? (
+                  <button
+                    onClick={() => setView(hasJira ? 'create-jira' : hasShortcut ? 'create-shortcut' : 'create-clickup')}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Ticket
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    {hasJira && (
+                      <button onClick={() => setView('create-jira')} title="New JIRA ticket"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors">
+                        <JiraLogo size={11}/> New
+                      </button>
+                    )}
+                    {hasShortcut && (
+                      <button onClick={() => setView('create-shortcut')} title="New Shortcut story"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors">
+                        <ShortcutLogo size={11}/> New
+                      </button>
+                    )}
+                    {hasClickup && (
+                      <button onClick={() => setView('create-clickup')} title="New ClickUp task"
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition-colors">
+                        <ClickUpLogo size={11}/> New
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
@@ -578,7 +1015,7 @@ const TicketModal: React.FC<{
                   type="text"
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Search all JIRA tickets…"
+                  placeholder="Search tickets…"
                   className="w-full pl-10 pr-10 py-2 text-sm bg-panel-hover border border-panel-border rounded-xl text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
                 {(loading || searching) && (
@@ -595,13 +1032,13 @@ const TicketModal: React.FC<{
                 <div className="px-5 py-8 text-center">
                   <div className="text-sm text-red-600 mb-2">Failed to load tickets</div>
                   <div className="text-xs text-ink-3 font-mono bg-red-50 rounded px-3 py-2">{error}</div>
-                  <div className="text-xs text-ink-3 mt-3">Check JIRA credentials in Settings</div>
+                  <div className="text-xs text-ink-3 mt-3">Check credentials in Settings</div>
                 </div>
               ) : !loading && displayed.length === 0 ? (
                 <div className="px-5 py-10 text-center">
                   <div className="text-sm text-ink-2 mb-2">{search ? 'No results found' : 'No tickets found'}</div>
                   <div className="text-xs text-ink-3 leading-relaxed">
-                    {search ? 'Try a different search term' : 'Set JIRA project key in Settings → Repositories'}
+                    {search ? 'Try a different search term' : 'Configure integrations in Settings'}
                   </div>
                   {!search && (
                     <button
@@ -653,9 +1090,7 @@ export const Sidebar: React.FC = () => {
   const { createSession } = useSessions()
   const { setSelectedSession } = useAppStore()
 
-  const [repoPath, setRepoPath] = useState('')
   const [addingRepo, setAddingRepo] = useState(false)
-  const [showAddRepo, setShowAddRepo] = useState(false)
 
   const [selectedRepo, setSelectedRepoLocal] = useState<Repository | null>(null)
   const [baseBranch, setBaseBranch] = useState('')
@@ -695,7 +1130,7 @@ export const Sidebar: React.FC = () => {
   useEffect(() => {
     const r = repos.find((r) => r.id === selectedRepoId) ?? null
     setSelectedRepoLocal(r)
-    if (r && !baseBranch) setBaseBranch(r.defaultBranch)
+    if (r) setBaseBranch(r.defaultBranch)
   }, [selectedRepoId, repos])
 
   // Auto-update branch name whenever ticket or base branch changes (unless user typed their own)
@@ -745,22 +1180,17 @@ export const Sidebar: React.FC = () => {
   }
 
   const handleAddRepo = async () => {
-    if (!repoPath.trim()) return
     setAddingRepo(true)
     try {
-      await addRepository(repoPath.trim())
-      setRepoPath('')
-      setShowAddRepo(false)
+      const dir = await pickDirectory()
+      if (dir) {
+        await addRepository(dir as string)
+      }
     } catch (err) {
       alert(String(err))
     } finally {
       setAddingRepo(false)
     }
-  }
-
-  const handlePickDir = async () => {
-    const dir = await pickDirectory()
-    if (dir) setRepoPath(dir as string)
   }
 
   const handleBranchSelect = (repo: Repository, branch: string) => {
@@ -878,41 +1308,23 @@ export const Sidebar: React.FC = () => {
             )}
           </div>
           <button
-            onClick={() => setShowAddRepo(!showAddRepo)}
+            onClick={handleAddRepo}
+            disabled={addingRepo}
             title="Add repository"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover border border-panel-border hover:border-ink-4 transition-colors"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-ink-3 hover:text-ink hover:bg-panel-hover border border-panel-border hover:border-ink-4 transition-colors disabled:opacity-40"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
-            </svg>
+            {addingRepo ? (
+              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/>
+              </svg>
+            )}
           </button>
         </div>
-
-        {showAddRepo && (
-          <div className="mt-2 flex gap-1.5">
-            <input
-              type="text"
-              placeholder="/path/to/repo"
-              value={repoPath}
-              onChange={(e) => setRepoPath(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddRepo()}
-              autoFocus
-              className="flex-1 min-w-0 bg-panel-card border border-panel-border rounded-lg px-2.5 py-1.5 text-xs text-ink placeholder-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-            <button onClick={handlePickDir} className="px-2 rounded-lg border border-panel-border hover:bg-panel-hover text-ink-2 text-xs">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-              </svg>
-            </button>
-            <button
-              onClick={handleAddRepo}
-              disabled={addingRepo || !repoPath.trim()}
-              className="px-2.5 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-hover disabled:opacity-40"
-            >
-              {addingRepo ? '…' : 'Add'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── New session form ── */}
@@ -999,7 +1411,7 @@ export const Sidebar: React.FC = () => {
         >
           {selectedTicket ? (
             <>
-              {selectedTicket.type === 'jira' ? <JiraLogo size={12}/> : <ShortcutLogo size={12}/>}
+              {selectedTicket.type === 'jira' ? <JiraLogo size={12}/> : selectedTicket.type === 'shortcut' ? <ShortcutLogo size={12}/> : <ClickUpLogo size={12}/>}
               <span className="font-mono text-[11px] font-semibold flex-1 text-left truncate">{selectedTicket.key}</span>
               <span className="text-xs text-ink-3 truncate flex-1">{selectedTicket.title.slice(0, 25)}…</span>
               <button
@@ -1013,8 +1425,16 @@ export const Sidebar: React.FC = () => {
             </>
           ) : (
             <>
-              {settings?.shortcutApiToken && !settings?.jiraBaseUrl ? <ShortcutLogo size={13}/> : <JiraLogo size={13}/>}
-              <span className="flex-1 text-left text-[13px] font-medium">{settings?.shortcutApiToken && !settings?.jiraBaseUrl ? 'Link Shortcut ticket' : settings?.jiraBaseUrl ? 'Link JIRA ticket' : 'Link ticket'}</span>
+              {settings?.clickupApiToken && !settings?.jiraBaseUrl && !settings?.shortcutApiToken ? <ClickUpLogo size={13}/> : settings?.shortcutApiToken && !settings?.jiraBaseUrl ? <ShortcutLogo size={13}/> : <JiraLogo size={13}/>}
+              <span className="flex-1 text-left text-[13px] font-medium">
+                {(() => {
+                  const integrations: string[] = []
+                  if (settings?.jiraBaseUrl) integrations.push('JIRA')
+                  if (settings?.shortcutApiToken) integrations.push('Shortcut')
+                  if (settings?.clickupApiToken) integrations.push('ClickUp')
+                  return integrations.length > 0 ? `Link ${integrations.join(' / ')} ticket` : 'Link ticket'
+                })()}
+              </span>
               <svg className="w-3 h-3 text-ink-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7"/>
               </svg>
@@ -1080,6 +1500,9 @@ export const Sidebar: React.FC = () => {
           projectKey={selectedRepo?.jiraProjectKey}
           onSelect={handleTicketSelect}
           onClose={() => setShowTicketModal(false)}
+          hasJira={!!(settings?.jiraBaseUrl && settings?.jiraEmail && settings?.jiraApiToken)}
+          hasShortcut={!!settings?.shortcutApiToken}
+          hasClickup={!!(settings?.clickupApiToken && settings?.clickupTeamId)}
         />
       )}
     </div>

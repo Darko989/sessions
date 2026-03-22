@@ -107,12 +107,36 @@ function openIntelliJ(cwd: string): Promise<void> {
   })
 }
 
-function openPhpStorm(cwd: string): Promise<void> {
+function openCodex(cwd: string): Promise<void> {
+  // Codex CLI is a TUI — it needs a terminal to run in.
   return new Promise((resolve, reject) => {
-    const proc = spawn('phpstorm', [cwd], { detached: true, stdio: 'ignore' })
-    proc.on('error', reject)
-    proc.unref()
-    setTimeout(resolve, 300)
+    if (process.platform === 'darwin') {
+      spawn('osascript', [
+        '-e', `tell application "Terminal" to do script "cd ${cwd.replace(/"/g, '\\\\"')} && codex"`,
+        '-e', 'tell application "Terminal" to activate'
+      ], { detached: true, stdio: 'ignore' }).unref()
+      resolve()
+    } else if (process.platform === 'win32') {
+      spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/K', `cd /d "${cwd}" && codex`], { detached: true, stdio: 'ignore' }).unref()
+      resolve()
+    } else {
+      const terminals: [string, string[]][] = [
+        ['gnome-terminal', ['--', 'bash', '-c', `cd "${cwd}" && codex; exec bash`]],
+        ['konsole', ['-e', 'bash', '-c', `cd "${cwd}" && codex; exec bash`]],
+        ['xfce4-terminal', ['-e', `bash -c 'cd "${cwd}" && codex; exec bash'`]],
+        ['xterm', ['-e', `bash -c 'cd "${cwd}" && codex; exec bash'`]]
+      ]
+      const tryNext = (i: number) => {
+        if (i >= terminals.length) { reject(new Error('No supported terminal found')); return }
+        const [t, a] = terminals[i]
+        execFile('which', [t], (err) => {
+          if (err) { tryNext(i + 1); return }
+          spawn(t, a, { detached: true, stdio: 'ignore', cwd }).unref()
+          resolve()
+        })
+      }
+      tryNext(0)
+    }
   })
 }
 
@@ -234,12 +258,12 @@ export function registerSessionIpc(
     activityLog.add('session_opened', `Opened "${session.name}" in IntelliJ IDEA`, { sessionId })
   })
 
-  ipcMain.handle('sessions:openInPhpStorm', async (_e, sessionId: string) => {
+  ipcMain.handle('sessions:openInCodex', async (_e, sessionId: string) => {
     const session = sessionManager.getById(sessionId)
     if (!session) throw new Error('Session not found')
-    await openPhpStorm(session.worktreePath)
+    await openCodex(session.worktreePath)
     sessionManager.markOpened(sessionId)
-    activityLog.add('session_opened', `Opened "${session.name}" in PhpStorm`, { sessionId })
+    activityLog.add('session_opened', `Opened "${session.name}" in Codex CLI`, { sessionId })
   })
 
   ipcMain.handle('sessions:openInFinder', (_e, sessionId: string) => {
