@@ -3,11 +3,10 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
 
-// Auto-update works on Windows (NSIS) and Linux AppImage (no code signing needed).
-// macOS requires code signing ($99/yr Apple Developer Program) — fallback to GitHub.
-// Linux .deb/.rpm can't be auto-updated by electron-updater — fallback to GitHub.
-const isAppImage = !!process.env.APPIMAGE
-const canAutoUpdate = process.platform === 'win32' || isAppImage
+// Auto-update: works on Windows (NSIS) and Linux (AppImage).
+// macOS requires code signing — fallback to GitHub.
+// On Linux .deb/.rpm, electron-updater will fail gracefully → renderer falls back to GitHub.
+const canAutoUpdate = process.platform !== 'darwin'
 import { GitService } from './services/GitService'
 import { RepoManager } from './services/RepoManager'
 import { SessionManager } from './services/SessionManager'
